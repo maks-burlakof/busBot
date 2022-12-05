@@ -1,9 +1,15 @@
 import telebot
 from telebot.types import Message
 from envparse import Env
+from logging import getLogger, StreamHandler
 from datetime import datetime
 from clients.telegram_client import TelegramClient
-from live import UserActioner, SQLiteClient
+from clients.sqlite3_client import SQLiteClient
+from actioners import UserActioner
+
+logger = getLogger(__name__)
+logger.addHandler(StreamHandler())
+logger.setLevel("INFO")
 
 env = Env()
 TOKEN = env.str('TOKEN')
@@ -19,11 +25,16 @@ class MyBot(telebot.TeleBot):
     def setup_resources(self):
         self.user_actioner.setup()
 
+    def shutdown_resources(self):
+        self.user_actioner.shutdown()
+
+    def shutdown(self):
+        self.shutdown_resources()
+
 
 telegram_client = TelegramClient(token=TOKEN, base_url="https://api.telegram.org")
 user_actioner = UserActioner(SQLiteClient("users.db"))
 bot = MyBot(token=TOKEN, telegram_client=telegram_client, user_actioner=user_actioner)
-bot.setup_resources()
 
 
 @bot.message_handler(commands=['start'])
@@ -58,7 +69,11 @@ def create_err_message(err: Exception) -> str:
 
 while True:
     try:
+        bot.setup_resources()
         bot.polling()
     except Exception as err:
-        bot.telegram_client.post(method="sendMessage", params={"text": create_err_message(err),
+        error_message = create_err_message(err)
+        bot.telegram_client.post(method="sendMessage", params={"text": error_message,
                                                                "chat_id": ADMIN_CHAT_ID})
+        logger.error(error_message)
+        bot.shutdown()
