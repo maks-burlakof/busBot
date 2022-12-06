@@ -26,10 +26,3 @@ class SQLiteClient:
             return cur.fetchall()
         else:
             raise ConnectionError("you need to create connection to database!")
-
-
-# sqlite_client = SQLiteClient('users.db')
-# sqlite_client.create_conn()
-# sqlite_client.execute_command(CREATE_TABLE, ())
-# sqlite_client.execute_command(CREATE_USER, (5, 'name2', 5678))
-# print(sqlite_client.execute_select_command(GET_USER % (2, )))
