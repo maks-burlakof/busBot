@@ -5,6 +5,8 @@ from clients.sqlite3_client import SQLiteClient
 class UserActioner:
     GET_USER = 'SELECT user_id, username, chat_id FROM users WHERE user_id = %s;'
 
+    GET_ALL_USERS = 'SELECT username, chat_id FROM users'
+
     CREATE_USER = 'INSERT INTO users (user_id, username, chat_id) VALUES (?, ?, ?);'
 
     UPDATE_NOTIFY_DATA = 'UPDATE users SET notify_data = ? WHERE user_id = ?;'
@@ -35,6 +37,9 @@ class UserActioner:
     def get_user(self, user_id: str):
         user = self.database_client.execute_select_command(self.GET_USER % user_id)
         return user[0] if user else []
+
+    def get_all_users(self):
+        return self.database_client.execute_select_command(self.GET_ALL_USERS)
 
     def create_user(self, user_id: str, username: str, chat_id: int):
         self.database_client.execute_command(self.CREATE_USER, (user_id, username, chat_id))

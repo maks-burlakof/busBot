@@ -77,7 +77,6 @@ def parse(message: Message):
 
 
 def parse_response(message: Message):
-    # TODO: Сделать функцию для ввода данных рейса
     city_from, city_to, departure_date = message.text.split(' ')
     response = bot.parser.parse(city_from, city_to, departure_date)
     if response:
@@ -101,7 +100,7 @@ def extra(message: Message):
     msg = "Дополнительные возможности:\n"\
           "/description - Описание проекта\n"\
           "/feedback - Отправка сообщения администратору\n"
-    if message.chat.id == ADMIN_CHAT_ID:
+    if message.chat.id == int(ADMIN_CHAT_ID):
         msg+= "/announcement_text - Объявление (текстовое) для пользователей\n" \
               "/announcement_auto - Объявление (с форматированием) для пользователей\n"
     bot.send_message(message.chat.id, msg)
@@ -109,7 +108,8 @@ def extra(message: Message):
 
 @bot.message_handler(commands=["description"])
 def description(message: Message):
-    pass
+    bot.send_message(message.chat.id, '[Смотреть README.md на GitHub](https://github.com/'
+                                      'maks-burlakof/bus_bot/blob/main/README.md)', parse_mode='Markdown')
 
 
 @bot.message_handler(commands=["feedback"])
@@ -126,22 +126,40 @@ def feedback_speech(message: Message):
 
 @bot.message_handler(commands=["announcement_text"])
 def announcement_text(message: Message):
-    pass
+    if not is_admin(message):
+        return
+    bot.send_message(message.chat.id, "Введите текст объявления, которое будет отправлено всем пользователям")
+    bot.register_next_step_handler(message, announcement_text_speech)
+
+
+def announcement_text_speech(message: Message):
+    if not is_admin(message):
+        return
+    bot.reply_to(message, "Выберите пользователей, которым будет отправлено объявление")
+    users = bot.user_actioner.get_all_users()
+    bot.send_message(message.chat.id, "tuple\n")  # TODO: Запихать сюда кортеж
 
 
 @bot.message_handler(commands=["announcement_auto"])
 def announcement_auto(message: Message):
-    pass
+    is_admin()
 
 
 def create_err_message(err: Exception) -> str:
     return f"{date.today()} ::: {err.__class__} ::: {err}"
 
 
+def is_admin(message):
+    if message.chat.id != int(ADMIN_CHAT_ID):
+        bot.send_message(message.chat.id, "У вас нет прав на использование этой команды.")
+        return False
+    else:
+        return True
+
+
 while True:
     try:
         bot.setup_resources()
-        logger.debug('Created new bot.polling session')
         bot.polling()
     except Exception as err:
         bot.telegram_client.post(method="sendMessage", params={"text": create_err_message(err),
