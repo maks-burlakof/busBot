@@ -11,6 +11,8 @@ class UserActioner:
 
     UPDATE_NOTIFY_DATA = 'UPDATE users SET notify_data = ? WHERE user_id = ?;'
 
+    UPDATE_TRACK_DATA = 'UPDATE users SET track_data = ? WHERE user_id = ?;'
+
     CREATE_TABLE = """
         CREATE TABLE IF NOT EXISTS users (
             "user_id" INTEGER PRIMARY KEY NOT NULL UNIQUE,
@@ -46,6 +48,9 @@ class UserActioner:
 
     def update_notify_data(self, user_id: str, updated_date: list):
         self.database_client.execute_command(self.UPDATE_NOTIFY_DATA, (str(updated_date), user_id))
+
+    def update_track_data(self, user_id: str, updated_date: list):
+        self.database_client.execute_command(self.UPDATE_TRACK_DATA, (str(updated_date), user_id))
 
 
 if __name__ == '__main__':

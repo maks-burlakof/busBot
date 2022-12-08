@@ -87,7 +87,15 @@ def parse_response(message: Message):
 
 @bot.message_handler(commands=["track"])
 def track(message: Message):
-    pass
+    bot.send_message(message.chat.id, 'Отправьте через пробел город отправления, город прибытия, '
+                                      'дату в формате "2023-01-13" и время отправления рейса')
+    bot.register_next_step_handler(message, track_set)
+
+
+def track_set(message: Message):
+    track_data = message.text.split(' ')
+    bot.user_actioner.update_track_data(user_id=str(message.from_user.id), updated_date=track_data)
+    bot.send_message(message.chat.id, 'Отлично! Я пришлю тебе уведомление, когда появятся свободные места на этот рейс.')
 
 
 @bot.message_handler(commands=["settings"])
@@ -114,7 +122,7 @@ def description(message: Message):
 
 @bot.message_handler(commands=["feedback"])
 def feedback(message: Message):
-    bot.reply_to(message, text="Отправьте сообщение администратору")
+    bot.reply_to(message, text="Отправьте сообщение администратору:")
     bot.register_next_step_handler(message, feedback_speech)
 
 
@@ -133,16 +141,24 @@ def announcement_text(message: Message):
 
 
 def announcement_text_speech(message: Message):
-    if not is_admin(message):
-        return
-    bot.reply_to(message, "Выберите пользователей, которым будет отправлено объявление")
-    users = bot.user_actioner.get_all_users()
-    bot.send_message(message.chat.id, "tuple\n")  # TODO: Запихать сюда кортеж
+    bot.reply_to(message, "Вы уверены, что хотите отправить это объявление всем пользователям?\nДа/Нет")
+    bot.register_next_step_handler(message, announcement_text_confirmation, message.text)
+
+
+def announcement_text_confirmation(message: Message, ann_text: str):
+    if message.text.title().strip() == "Да":
+        bot.send_message(message.chat.id, "Объявление отправлено всем участникам")
+        users = bot.user_actioner.get_all_users()
+        for user in users:
+            bot.send_message(user[1], "*🔔 Объявление:*\n" + ann_text, parse_mode='Markdown')
+    else:
+        bot.send_message(message.chat.id, "Отправка объявления отменена")
 
 
 @bot.message_handler(commands=["announcement_auto"])
 def announcement_auto(message: Message):
-    is_admin()
+    if not is_admin(message):
+        return
 
 
 def create_err_message(err: Exception) -> str:

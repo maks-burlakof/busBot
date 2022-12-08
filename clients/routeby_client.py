@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+import datetime
 from selenium.common.exceptions import NoSuchElementException
 import json
 
@@ -40,29 +41,33 @@ class SiteParser:
         return False if 'Билеты не найдены' in text else True
 
     def parse(self, city_from: str, city_to: str, date: str):
+        if datetime.date(int(date.split('-')[0]), int(date.split('-')[1]), int(date.split('-')[2])) < \
+                datetime.date.today():
+            return {}
         url = self.prepare_url(city_from, city_to, date)
         text = self.get_page_text(url=url)
         response = {}
         i_begin = 0
         counter = 1
+        c = 1 if str(datetime.date.today()) != date else 0  # correction
         while len(text[i_begin]) == 5:
-            if 'Нет мест' in text[i_begin + 7]:
+            if 'Нет мест' in text[i_begin + 6+c]:
                 response.update({
                     counter: {
                         'departure_time': text[i_begin],
-                        'arrival_time': text[i_begin + 4],
+                        'arrival_time': text[i_begin + 3+c],
                         'cost': None,
-                        'free_places_info': text[i_begin + 7]
+                        'free_places_info': 'Нет мест'
                     }})
-                i_begin += 11
-            elif 'Br' in text[i_begin + 7]:
+                i_begin += 10+c
+            elif 'Br' in text[i_begin + 6+c]:
                 response.update({
                     counter: {
                         'departure_time': text[i_begin],
-                        'arrival_time': text[i_begin + 4],
-                        'cost': text[i_begin + 7],
-                        'free_places_info': text[i_begin + 9]
+                        'arrival_time': text[i_begin + 3+c],
+                        'cost': text[i_begin + 6+c],
+                        'free_places_info': text[i_begin + 8+c]
                     }})
-                i_begin += 14
+                i_begin += 13+c
             counter += 1
         return response
