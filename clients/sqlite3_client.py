@@ -17,7 +17,7 @@ class SQLiteClient:
             self.conn.execute(command, params)
             self.conn.commit()
         else:
-            raise ConnectionError("you need to create connection to database!")
+            raise ConnectionError("You need to create connection to database!")
 
     def execute_select_command(self, command: str):
         if self.conn is not None:
@@ -25,4 +25,4 @@ class SQLiteClient:
             cur.execute(command)
             return cur.fetchall()
         else:
-            raise ConnectionError("you need to create connection to database!")
+            raise ConnectionError("You need to create connection to database!")

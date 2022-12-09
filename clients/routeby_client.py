@@ -46,6 +46,8 @@ class SiteParser:
             return {}
         url = self.prepare_url(city_from, city_to, date)
         text = self.get_page_text(url=url)
+        if 'Рейсов не найдено' in text or 'Билеты не найдены' in text:
+            return {}
         response = {}
         i_begin = 0
         counter = 1
@@ -69,5 +71,7 @@ class SiteParser:
                         'free_places_info': text[i_begin + 8+c]
                     }})
                 i_begin += 13+c
+            else:
+                break
             counter += 1
         return response

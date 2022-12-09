@@ -60,12 +60,12 @@ def start(message: Message):
 
 @bot.message_handler(commands=["notify"])
 def notify(message: Message):
-    bot.send_message(message.chat.id, 'Введите через пробел город отправления, город прибытия, дату в формате "2023-01-13"')
+    bot.send_message(message.chat.id, 'Введите дату отправления в формате "2023-01-13"')
     bot.register_next_step_handler(message, notify_set)
 
 
 def notify_set(message: Message):
-    notify_data = message.text.split(' ')
+    notify_data = message.text.strip(' ')
     bot.user_actioner.update_notify_data(user_id=str(message.from_user.id), updated_date=notify_data)
     bot.send_message(message.chat.id, 'Отлично! Я пришлю тебе уведомление, когда появятся рейсы на эту дату.')
 
@@ -77,8 +77,11 @@ def parse(message: Message):
 
 
 def parse_response(message: Message):
+    bot.delete_message(message.chat.id, message.id - 1)
+    bot.send_message(message.chat.id, "Загрузка данных...")
     city_from, city_to, departure_date = message.text.split(' ')
     response = bot.parser.parse(city_from, city_to, departure_date)
+    bot.delete_message(message.chat.id, message.id + 1)
     if response:
         bot.send_message(message.chat.id, str(response))
     else:

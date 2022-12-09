@@ -18,7 +18,7 @@ class UserActioner:
             "user_id" INTEGER PRIMARY KEY NOT NULL UNIQUE,
             "username" TEXT NOT NULL,
             "chat_id" INTEGER NOT NULL,
-            "notify_data" TEXT,
+            "notify_data" DATE,
             "track_data" TEXT
         );
     """
@@ -46,16 +46,14 @@ class UserActioner:
     def create_user(self, user_id: str, username: str, chat_id: int):
         self.database_client.execute_command(self.CREATE_USER, (user_id, username, chat_id))
 
-    def update_notify_data(self, user_id: str, updated_date: list):
-        self.database_client.execute_command(self.UPDATE_NOTIFY_DATA, (str(updated_date), user_id))
+    def update_notify_data(self, user_id: str, updated_date: str or None):
+        if updated_date:
+            self.database_client.execute_command(self.UPDATE_NOTIFY_DATA,
+                                                 (date(int(updated_date.split('-')[0]), int(updated_date.split('-')[1]),
+                                                       int(updated_date.split('-')[2])), user_id))
+        else:
+            self.database_client.execute_command(self.UPDATE_NOTIFY_DATA, (None, user_id))
+
 
     def update_track_data(self, user_id: str, updated_date: list):
         self.database_client.execute_command(self.UPDATE_TRACK_DATA, (str(updated_date), user_id))
-
-
-if __name__ == '__main__':
-    user_actioner = UserActioner(SQLiteClient('users.db'))
-    user_actioner.setup()
-    user = user_actioner.get_user('10')
-    print(user)
-    user_actioner.create_user('10', 'testname', 12345)
