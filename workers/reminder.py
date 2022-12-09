@@ -49,13 +49,3 @@ class Reminder:
             logger.error("Resources in worker.reminder has not been set up!")
             return
         self.execute()
-
-
-if __name__ == "__main__":
-    database_client = SQLiteClient("FULL PATH TO DATABASE FILE")
-    user_actioner = UserActioner(database_client)
-    telegram_client = TelegramClient(token=TOKEN,
-                                     base_url="https://api.telegram.org")
-    reminder = Reminder(database_client=database_client, telegram_client=telegram_client, user_actioner=user_actioner)
-    reminder.setup()
-    reminder()
