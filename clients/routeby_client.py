@@ -3,8 +3,6 @@ from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import datetime
-from selenium.common.exceptions import NoSuchElementException
-import json
 
 
 class SiteParser:

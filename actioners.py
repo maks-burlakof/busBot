@@ -54,6 +54,5 @@ class UserActioner:
         else:
             self.database_client.execute_command(self.UPDATE_NOTIFY_DATA, (None, user_id))
 
-
     def update_track_data(self, user_id: str, updated_date: list):
         self.database_client.execute_command(self.UPDATE_TRACK_DATA, (str(updated_date), user_id))
