@@ -52,7 +52,6 @@ def start(message: Message):
     if not user:
         bot.user_actioner.create_user(user_id=str(user_id), username=username, chat_id=chat_id)
         create_new_user = True
-    # TODO: Показывать также возможности бота
     bot.reply_to(message=message, text=f"Вы {'уже' if not create_new_user else 'успешно'} зарегистрированы: {username}.\n"
                                        f"Ваш user_id: {user_id}")
     logger.info(f'User @{username} called /start function')
@@ -66,6 +65,9 @@ def notify(message: Message):
 
 def notify_set(message: Message):
     notify_data = message.text.strip(' ')
+    if not bot.parser.is_input_correct(date=notify_data):
+        bot.send_message(message.chat.id, "Рейсов на этот день не найдено.")
+        return
     bot.user_actioner.update_notify_data(user_id=str(message.from_user.id), updated_date=notify_data)
     bot.send_message(message.chat.id, 'Отлично! Я пришлю тебе уведомление, когда появятся рейсы на эту дату.')
 
@@ -80,12 +82,14 @@ def parse_response(message: Message):
     bot.delete_message(message.chat.id, message.id - 1)
     bot.send_message(message.chat.id, "Загрузка данных...")
     city_from, city_to, departure_date = message.text.split(' ')
+    if not bot.parser.is_input_correct(date=departure_date):
+        bot.edit_message_text("Рейсов на этот день не найдено.", message.chat.id, message.id + 1)
+        return
     response = bot.parser.parse(city_from, city_to, departure_date)
-    bot.delete_message(message.chat.id, message.id + 1)
     if response:
-        bot.send_message(message.chat.id, str(response))
+        bot.edit_message_text(str(response), message.chat.id, message.id + 1)
     else:
-        bot.send_message(message.chat.id, "Рейсов на этот день не найдено.")
+        bot.edit_message_text("Рейсов на этот день не найдено.", message.chat.id, message.id + 1)
 
 
 @bot.message_handler(commands=["track"])
@@ -97,6 +101,7 @@ def track(message: Message):
 
 def track_set(message: Message):
     track_data = message.text.split(' ')
+    # TODO: добавить такую же проверку на верный ввод
     bot.user_actioner.update_track_data(user_id=str(message.from_user.id), updated_date=track_data)
     bot.send_message(message.chat.id, 'Отлично! Я пришлю тебе уведомление, когда появятся свободные места на этот рейс.')
 

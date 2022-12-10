@@ -27,7 +27,7 @@ git clone https://github.com/maks-burlakof/bus_bot.git
 cd bus_bot
 python3 main.py
 ```
-User notification is implemented using the worker/notifier.py script. 
+User notification is implemented using the worker/reminder.py script. 
 Cron is used to automatically run the notifier_executor.py script on linux systems. 
 Check if cron is installed on your system using:
 ```bash

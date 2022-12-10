@@ -19,6 +19,13 @@ class SiteParser:
         self.options.headless = headless
         self.options.add_experimental_option("prefs", {'profile.managed_default_content_settings.javascript': 3})
 
+    def is_input_correct(self, date: str):
+        if datetime.date(int(date.split('-')[0]), int(date.split('-')[1]), int(date.split('-')[2])) < \
+                datetime.date.today():
+            return False
+        else:
+            return True
+
     def prepare_url(self, city_from: str, city_to: str, date: str):
         key_from = self.CITY_DATA.get(city_from)
         key_to = self.CITY_DATA.get(city_to)
@@ -36,15 +43,18 @@ class SiteParser:
     def check_buses(self, city_from: str, city_to: str, date: str):
         url = self.prepare_url(city_from, city_to, date)
         text = self.get_page_text(url=url)
-        return False if 'Билеты не найдены' in text else True
+        return False if 'Билеты не найдены' or 'Рейсов не найдено' in text else True
+
+    def is_available_buses(self, text: list):
+        if 'Рейсов не найдено' in text or 'Билеты не найдены' in text:
+            return False
+        else:
+            return True
 
     def parse(self, city_from: str, city_to: str, date: str):
-        if datetime.date(int(date.split('-')[0]), int(date.split('-')[1]), int(date.split('-')[2])) < \
-                datetime.date.today():
-            return {}
         url = self.prepare_url(city_from, city_to, date)
         text = self.get_page_text(url=url)
-        if 'Рейсов не найдено' in text or 'Билеты не найдены' in text:
+        if not self.is_available_buses(text):
             return {}
         response = {}
         i_begin = 0
@@ -73,3 +83,6 @@ class SiteParser:
                 break
             counter += 1
         return response
+
+    def check_free_seats(self, city_from: str, city_to: str, date: str, departure_time: str):
+        pass
