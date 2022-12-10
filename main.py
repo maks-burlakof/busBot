@@ -100,10 +100,15 @@ def track(message: Message):
 
 
 def track_set(message: Message):
+    bot.send_message(message.chat.id, 'Обрабатываю запрос...')
     track_data = message.text.split(' ')
-    # TODO: добавить такую же проверку на верный ввод
+    if not bot.parser.is_input_correct(track_data[0], track_data[1], track_data[2], track_data[3]):
+        bot.edit_message_text("Рейсов на этот день не найдено.",
+                              message.chat.id, message.id + 1)
+        return
     bot.user_actioner.update_track_data(user_id=str(message.from_user.id), updated_date=track_data)
-    bot.send_message(message.chat.id, 'Отлично! Я пришлю тебе уведомление, когда появятся свободные места на этот рейс.')
+    bot.edit_message_text('Отлично! Я пришлю тебе уведомление, когда появятся свободные места на этот рейс.',
+                          message.chat.id, message.id + 1)
 
 
 @bot.message_handler(commands=["settings"])

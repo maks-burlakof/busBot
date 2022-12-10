@@ -1,6 +1,7 @@
-from actioners import UserActioner
 from clients.sqlite3_client import SQLiteClient
 from clients.telegram_client import TelegramClient
+from actioners import UserActioner
+from clients.routeby_client import SiteParser
 from logging import getLogger, config
 from envparse import Env
 from datetime import date, timedelta
@@ -19,10 +20,12 @@ class Reminder:
 
     GET_TRACK_DATA = 'SELECT chat_id, user_id, track_data FROM users WHERE track_data NOT NULL;'
 
-    def __init__(self, telegram_client: TelegramClient, database_client: SQLiteClient, user_actioner: UserActioner):
+    def __init__(self, telegram_client: TelegramClient, database_client: SQLiteClient,
+                 user_actioner: UserActioner, parser: SiteParser):
         self.telegram_client = telegram_client
         self.database_client = database_client
         self.user_actioner = user_actioner
+        self.parser = parser
         self.setted_up = False
 
     def setup(self):
@@ -42,7 +45,13 @@ class Reminder:
 
     def track(self, track_ids: list):
         for chat_id, user_id, track_data in track_ids:
-            pass
+            if self.parser.get_free_seats(track_data[0], track_data[1], track_data[2], track_data[3]):
+                res = self.telegram_client.post(method="sendMessage", params={
+                    "text": f"Появились свободные места на рейс {track_data[2]} "
+                            f"{track_data[0]} - {track_data[1]} в {track_data[3]}! Успей заказать!",
+                    "chat_id": chat_id})
+                self.user_actioner.update_track_data(user_id=str(user_id), updated_date=None)
+                logger.info(res)
 
     def execute_notify(self):
         if not self.setted_up:

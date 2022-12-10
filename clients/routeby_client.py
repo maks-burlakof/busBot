@@ -19,12 +19,17 @@ class SiteParser:
         self.options.headless = headless
         self.options.add_experimental_option("prefs", {'profile.managed_default_content_settings.javascript': 3})
 
-    def is_input_correct(self, date: str):
-        if datetime.date(int(date.split('-')[0]), int(date.split('-')[1]), int(date.split('-')[2])) < \
+    def is_input_correct(self, city_from: str = None, city_to: str = None,
+                         date: str = None, departure_time: str = None):
+        if date and datetime.date(int(date.split('-')[0]), int(date.split('-')[1]), int(date.split('-')[2])) < \
                 datetime.date.today():
             return False
-        else:
-            return True
+        if departure_time:
+            url = self.prepare_url(city_from, city_to, date)
+            if departure_time not in self.get_page_text(url=url):
+                return False
+        return True
+
 
     def prepare_url(self, city_from: str, city_to: str, date: str):
         key_from = self.CITY_DATA.get(city_from)
@@ -84,5 +89,12 @@ class SiteParser:
             counter += 1
         return response
 
-    def check_free_seats(self, city_from: str, city_to: str, date: str, departure_time: str):
-        pass
+    def get_free_seats(self, city_from: str, city_to: str, date: str, departure_time: str):
+        url = self.prepare_url(city_from, city_to, date)
+        text = self.get_page_text(url=url)
+        c = 1 if str(datetime.date.today()) != date else 0  # correction
+        date_index = text.index(departure_time)
+        if 'Br' in text[date_index + 6+c]:
+            return text[date_index + 8+c]
+        else:
+            return 0
