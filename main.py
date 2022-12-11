@@ -3,7 +3,9 @@ from telebot.types import Message
 from envparse import Env
 from logging import getLogger, config
 from datetime import date
+from random import choice
 
+from message_texts import *
 from clients.telegram_client import TelegramClient
 from clients.sqlite3_client import SQLiteClient
 from clients.routeby_client import SiteParser
@@ -46,132 +48,123 @@ def start(message: Message):
     user_id = message.from_user.id
     username = message.from_user.username
     chat_id = message.chat.id
-    create_new_user = False
 
     user = bot.user_actioner.get_user(user_id=str(user_id))
     if not user:
         bot.user_actioner.create_user(user_id=str(user_id), username=username, chat_id=chat_id)
-        create_new_user = True
-    bot.reply_to(message=message, text=f"Вы {'уже' if not create_new_user else 'успешно'} зарегистрированы: {username}.\n"
-                                       f"Ваш user_id: {user_id}")
-    logger.info(f'User @{username} called /start function')
+        bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name)
+        logger.info(f'User @{username} is registered')
+    else:
+        bot.send_message(message.chat.id, START_OLD_USER_MSG)
+    bot.send_message(message.chat.id, START_FEATURES_MSG, parse_mode='Markdown')
 
 
 @bot.message_handler(commands=["notify"])
 def notify(message: Message):
-    bot.send_message(message.chat.id, 'Введите дату отправления в формате "2023-01-13"')
+    bot.send_message(message.chat.id, NOTIFY_INPUT_MSG)
     bot.register_next_step_handler(message, notify_set)
 
 
 def notify_set(message: Message):
     notify_data = message.text.strip(' ')
     if not bot.parser.is_input_correct(date=notify_data):
-        bot.send_message(message.chat.id, "Рейсов на этот день не найдено.")
+        bot.send_message(message.chat.id, choice(NO_BUSES_MSGS))
         return
     bot.user_actioner.update_notify_data(user_id=str(message.from_user.id), updated_date=notify_data)
-    bot.send_message(message.chat.id, 'Отлично! Я пришлю тебе уведомление, когда появятся рейсы на эту дату.')
+    bot.send_message(message.chat.id, choice(NOTIFY_TRACK_SET_MSGS))
 
 
 @bot.message_handler(commands=["parse"])
 def parse(message: Message):
-    bot.send_message(message.chat.id, 'Введите через пробел город отправления, город прибытия, дату в формате "2023-01-13"')
+    bot.send_message(message.chat.id, PARSE_INPUT_MSG)
     bot.register_next_step_handler(message, parse_response)
 
 
 def parse_response(message: Message):
     bot.delete_message(message.chat.id, message.id - 1)
-    bot.send_message(message.chat.id, "Загрузка данных...")
+    bot.send_message(message.chat.id, choice(LOADING_MSGS))
     city_from, city_to, departure_date = message.text.split(' ')
     if not bot.parser.is_input_correct(date=departure_date):
-        bot.edit_message_text("Рейсов на этот день не найдено.", message.chat.id, message.id + 1)
+        bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
         return
     response = bot.parser.parse(city_from, city_to, departure_date)
     if response:
         bot.edit_message_text(str(response), message.chat.id, message.id + 1)
     else:
-        bot.edit_message_text("Рейсов на этот день не найдено.", message.chat.id, message.id + 1)
+        bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
 
 
 @bot.message_handler(commands=["track"])
 def track(message: Message):
-    bot.send_message(message.chat.id, 'Отправьте через пробел город отправления, город прибытия, '
-                                      'дату в формате "2023-01-13" и время отправления рейса')
+    bot.send_message(message.chat.id, TRACK_INPUT_MSG)
     bot.register_next_step_handler(message, track_set)
 
 
 def track_set(message: Message):
-    bot.send_message(message.chat.id, 'Обрабатываю запрос...')
+    bot.send_message(message.chat.id, choice(LOADING_MSGS))
     track_data = message.text.split(' ')
     if not bot.parser.is_input_correct(track_data[0], track_data[1], track_data[2], track_data[3]):
-        bot.edit_message_text("Рейсов на этот день не найдено.",
-                              message.chat.id, message.id + 1)
+        bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
         return
     bot.user_actioner.update_track_data(user_id=str(message.from_user.id), updated_date=track_data)
-    bot.edit_message_text('Отлично! Я пришлю тебе уведомление, когда появятся свободные места на этот рейс.',
-                          message.chat.id, message.id + 1)
+    bot.edit_message_text(choice(NOTIFY_TRACK_SET_MSGS), message.chat.id, message.id + 1)
 
 
 @bot.message_handler(commands=["settings"])
 def settings(message: Message):
-    pass
+    bot.send_message(message.chat.id, FEATURE_NOT_ADDED)
 
 
 @bot.message_handler(commands=["extra"])
 def extra(message: Message):
-    msg = "Дополнительные возможности:\n"\
-          "/description - Описание проекта\n"\
-          "/feedback - Отправка сообщения администратору\n"
-    if message.chat.id == int(ADMIN_CHAT_ID):
-        msg+= "/announcement_text - Объявление (текстовое) для пользователей\n" \
-              "/announcement_auto - Объявление (с форматированием) для пользователей\n"
-    bot.send_message(message.chat.id, msg)
+    bot.send_message(message.chat.id, EXTRA_MSG + EXTRA_ADMIN_MSG if message.chat.id == int(ADMIN_CHAT_ID) else '',
+                     parse_mode='HTML')
 
 
 @bot.message_handler(commands=["description"])
 def description(message: Message):
-    bot.send_message(message.chat.id, '[Смотреть README.md на GitHub](https://github.com/'
-                                      'maks-burlakof/bus_bot/blob/main/README.md)', parse_mode='Markdown')
+    bot.send_message(message.chat.id, DESCRIPTION_MSG, parse_mode='Markdown')
 
 
 @bot.message_handler(commands=["feedback"])
 def feedback(message: Message):
-    bot.reply_to(message, text="Отправьте сообщение администратору:")
+    bot.reply_to(message, FEEDBACK_MSG)
     bot.register_next_step_handler(message, feedback_speech)
 
 
 def feedback_speech(message: Message):
-    bot.send_message(ADMIN_CHAT_ID, f"Пользователь @{message.from_user.username} "
-                                    f"отправил сообщение:\n{message.text}")
-    bot.reply_to(message, "Ваше сообщение отправлено")
+    bot.send_message(ADMIN_CHAT_ID, FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, message.text))
+    bot.reply_to(message, FEEDBACK_SUBMIT_MSG)
 
 
 @bot.message_handler(commands=["announcement_text"])
 def announcement_text(message: Message):
     if not is_admin(message):
         return
-    bot.send_message(message.chat.id, "Введите текст объявления, которое будет отправлено всем пользователям")
+    bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_INPUT_MSG)
     bot.register_next_step_handler(message, announcement_text_speech)
 
 
 def announcement_text_speech(message: Message):
-    bot.reply_to(message, "Вы уверены, что хотите отправить это объявление всем пользователям?\nДа/Нет")
+    bot.reply_to(message, ANNOUNCEMENT_TEXT_CONFIRMATION_MSG)
     bot.register_next_step_handler(message, announcement_text_confirmation, message.text)
 
 
 def announcement_text_confirmation(message: Message, ann_text: str):
     if message.text.title().strip() == "Да":
-        bot.send_message(message.chat.id, "Объявление отправлено всем участникам")
+        bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_SENT_MSG)
         users = bot.user_actioner.get_all_users()
         for user in users:
-            bot.send_message(user[1], "*🔔 Объявление:*\n" + ann_text, parse_mode='Markdown')
+            bot.send_message(user[1], ANNOUNCEMENT_TEXT % ann_text, parse_mode='Markdown')
     else:
-        bot.send_message(message.chat.id, "Отправка объявления отменена")
+        bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_CANCELED_MSG)
 
 
 @bot.message_handler(commands=["announcement_auto"])
 def announcement_auto(message: Message):
     if not is_admin(message):
         return
+    bot.send_message(message.chat.id, FEATURE_NOT_ADDED)
 
 
 def create_err_message(err: Exception) -> str:
@@ -180,7 +173,7 @@ def create_err_message(err: Exception) -> str:
 
 def is_admin(message):
     if message.chat.id != int(ADMIN_CHAT_ID):
-        bot.send_message(message.chat.id, "У вас нет прав на использование этой команды.")
+        bot.send_message(message.chat.id, NO_RIGHTS_MSG)
         return False
     else:
         return True
