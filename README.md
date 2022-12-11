@@ -25,8 +25,26 @@ The bot will remind you in Telegram when the selected minibuses are available fo
 ```bash
 git clone https://github.com/maks-burlakof/bus_bot.git
 cd bus_bot
+python3 setup.py
 python3 main.py
 ```
+
+### Setting values for environment variables 
+Open the ``venv/bin/activate`` file and add to the end:
+```bash
+export TOKEN="VALUE"
+export ADMIN_CHAT_ID="VALUE"
+```
+where instead of ``VALUE`` insert your values.  
+
+Find the ``deactivate()`` function in this file, and add the following to the end of its code:
+```bash
+unset TOKEN
+unset ADMIN_CHAT_ID
+```
+Ready! Now, when you start your virtual environment using ``source venv/bin/activate``, the variables will be set automatically. When closing the virtual environment with ``deactivate``, the values of the variables are reset.
+
+### Cron configurations
 User notification is implemented using the worker/reminder.py script. 
 Cron is used to automatically run the notifier_executor.py script on linux systems. 
 Check if cron is installed on your system using:

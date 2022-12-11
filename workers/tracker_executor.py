@@ -1,6 +1,4 @@
-from clients.sqlite3_client import SQLiteClient
-from clients.telegram_client import TelegramClient
-from clients.routeby_client import SiteParser
+from clients import *
 from actioners import UserActioner
 from workers.reminder import Reminder, TOKEN
 

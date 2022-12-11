@@ -1,6 +1,5 @@
 from datetime import date
-from clients.sqlite3_client import SQLiteClient
-
+from clients import SQLiteClient
 
 class UserActioner:
     GET_USER = 'SELECT user_id, username, chat_id FROM users WHERE user_id = %s;'

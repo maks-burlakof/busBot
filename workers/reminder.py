@@ -3,9 +3,7 @@ from envparse import Env
 from datetime import date, timedelta
 
 from message_texts import *
-from clients.sqlite3_client import SQLiteClient
-from clients.telegram_client import TelegramClient
-from clients.routeby_client import SiteParser
+from clients import *
 from actioners import UserActioner
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
@@ -40,7 +38,7 @@ class Reminder:
     def notify(self, notify_ids: list):
         for chat_id, user_id in notify_ids:
             res = self.telegram_client.post(method="sendMessage", params={
-                "text": NOTIFY_MSG % date.today() + timedelta(days=self.TIME_DELTA),
+                "text": NOTIFY_MSG % str(date.today() + timedelta(days=self.TIME_DELTA)),
                 "chat_id": chat_id})
             self.user_actioner.update_notify_data(user_id=str(user_id), updated_date=None)
             logger.info(res)
@@ -50,8 +48,7 @@ class Reminder:
             track_data = track_data.split()
             if self.parser.get_free_seats(track_data[0], track_data[1], track_data[2], track_data[3]):
                 res = self.telegram_client.post(method="sendMessage", params={
-                    "text": f"Появились свободные места на рейс {track_data[2]} "
-                            f"{track_data[0]} - {track_data[1]} в {track_data[3]}! Успей заказать!",
+                    "text": TRACK_MSG % (track_data[2], track_data[0], track_data[1], track_data[3]),
                     "chat_id": chat_id})
                 self.user_actioner.update_track_data(user_id=str(user_id), updated_date=None)
                 logger.info(res)

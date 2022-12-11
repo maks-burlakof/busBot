@@ -6,9 +6,7 @@ from datetime import date
 from random import choice
 
 from message_texts import *
-from clients.telegram_client import TelegramClient
-from clients.sqlite3_client import SQLiteClient
-from clients.routeby_client import SiteParser
+from clients import *
 from actioners import UserActioner
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
