@@ -37,4 +37,5 @@ For cron configuration use:
 ```bash
 crontab -e
 0 0 * * * python3 /home/maksim/python/marshrutka/workers/notifier_executor.py
+* * * * * python3 /home/maksim/python/marshrutka/workers/tracker_executor.py
 ```

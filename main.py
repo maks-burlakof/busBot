@@ -52,7 +52,7 @@ def start(message: Message):
     user = bot.user_actioner.get_user(user_id=str(user_id))
     if not user:
         bot.user_actioner.create_user(user_id=str(user_id), username=username, chat_id=chat_id)
-        bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name)
+        bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown')
         logger.info(f'User @{username} is registered')
     else:
         bot.send_message(message.chat.id, START_OLD_USER_MSG)
@@ -106,7 +106,7 @@ def track_set(message: Message):
     if not bot.parser.is_input_correct(track_data[0], track_data[1], track_data[2], track_data[3]):
         bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
         return
-    bot.user_actioner.update_track_data(user_id=str(message.from_user.id), updated_date=track_data)
+    bot.user_actioner.update_track_data(user_id=str(message.from_user.id), updated_date=" ".join(track_data))
     bot.edit_message_text(choice(NOTIFY_TRACK_SET_MSGS), message.chat.id, message.id + 1)
 
 
@@ -117,7 +117,8 @@ def settings(message: Message):
 
 @bot.message_handler(commands=["extra"])
 def extra(message: Message):
-    bot.send_message(message.chat.id, EXTRA_MSG + EXTRA_ADMIN_MSG if message.chat.id == int(ADMIN_CHAT_ID) else '',
+    bot.send_message(message.chat.id,
+                     EXTRA_MSG + EXTRA_ADMIN_MSG if message.chat.id == int(ADMIN_CHAT_ID) else EXTRA_MSG,
                      parse_mode='HTML')
 
 

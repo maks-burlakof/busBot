@@ -30,7 +30,6 @@ class SiteParser:
                 return False
         return True
 
-
     def prepare_url(self, city_from: str, city_to: str, date: str):
         key_from = self.CITY_DATA.get(city_from)
         key_to = self.CITY_DATA.get(city_to)
