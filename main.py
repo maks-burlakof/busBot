@@ -55,6 +55,7 @@ def start(message: Message):
 
     user = bot.user_actioner.get_user(user_id=str(user_id))
     if not user:
+        bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEG0ZJjmPVT7_NYus3XFkwVDIaW0hQ7gwACpgwAAl3b6EuwssAGdg1yFSwE')
         bot.user_actioner.create_user(user_id=str(user_id), username=username, chat_id=chat_id)
         bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown')
         logger.info(f'User @{username} is registered')
@@ -71,22 +72,22 @@ def notify(message: Message):
 
 @bot.message_handler(commands=["parse"])
 def parse(message: Message):
-    bot.send_message(message.chat.id, PARSE_INPUT_MSG)
-    bot.register_next_step_handler(message, parse_response)
+    bot.send_message(message.chat.id, PARSE_INPUT_MSG,
+                     reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
 
-def parse_response(message: Message):
-    bot.delete_message(message.chat.id, message.id - 1)
-    bot.send_message(message.chat.id, choice(LOADING_MSGS))
-    city_from, city_to, departure_date = message.text.split(' ')
-    if not bot.parser.is_input_correct(date=departure_date):
-        bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
-        return
-    response = bot.parser.parse(city_from, city_to, departure_date)
-    if response:
-        bot.edit_message_text(str(response), message.chat.id, message.id + 1)
-    else:
-        bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
+# def parse_response(message: Message):
+#     bot.delete_message(message.chat.id, message.id - 1)
+#     bot.send_message(message.chat.id, choice(LOADING_MSGS))
+#     city_from, city_to, departure_date = message.text.split(' ')
+#     if not bot.parser.is_input_correct(date=departure_date):
+#         bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
+#         return
+#     response = bot.parser.parse(city_from, city_to, departure_date)
+#     if response:
+#         bot.edit_message_text(str(response), message.chat.id, message.id + 1)
+#     else:
+#         bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
 
 
 @bot.message_handler(commands=["track"])
@@ -111,6 +112,9 @@ def callback_inline_single_calendar(call: CallbackQuery):
         elif call.message.text == TRACK_INPUT_DATE_MSG:
             bot.user_actioner.update_track_data(user_id=str(call.from_user.id), updated_data=str(chosen_date))
             bot.send_message(call.from_user.id, TRACK_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
+        elif call.message.text == PARSE_INPUT_MSG:
+            bot.user_actioner.update_parse_date(user_id=str(call.from_user.id), updated_date=chosen_date)
+            bot.send_message(call.from_user.id, PARSE_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
     elif action == "CANCEL":
         bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
 
@@ -119,16 +123,31 @@ def callback_inline_single_calendar(call: CallbackQuery):
 def callback_inline_cities(call: CallbackQuery):
     name, action, city_from, city_to = call.data.split(city_markup.sep)
     if action == 'SET':
-        bot.edit_message_text(str(call.data), call.message.chat.id, call.message.message_id,
-                              reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
+        # if call.message.text == TRACK_INPUT_ROUTE_MSG:
+        #     bot.edit_message_text(TRACK_INPUT_ROUTE_MSG, call.message.chat.id, call.message.message_id,
+        #                           reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
+        # elif call.message.text == PARSE_INPUT_ROUTE_MSG:
+        #     bot.edit_message_text(PARSE_INPUT_ROUTE_MSG, call.message.chat.id, call.message.message_id,
+        #                           reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id,
+                                      reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
     elif action == 'SUBMIT':
         bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
-        track_date = bot.user_actioner.get_track_data(str(call.from_user.id))[0]
-        bot.user_actioner.update_track_data(str(call.from_user.id), f'{track_date} {city_from} {city_to}')
-        bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
-        bot.send_message(call.from_user.id, TRACK_INPUT_DEPARTURE_TIME,
-                         reply_markup=departure_time_markup.create_list(city_from, city_to, track_date))
-        bot.delete_message(call.from_user.id, call.message.id + 1)
+        if call.message.text == TRACK_INPUT_ROUTE_MSG:
+            track_date = bot.user_actioner.get_track_data(str(call.from_user.id))[0]
+            bot.user_actioner.update_track_data(str(call.from_user.id), f'{track_date} {city_from} {city_to}')
+            bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
+            bot.send_message(call.from_user.id, TRACK_INPUT_DEPARTURE_TIME,
+                             reply_markup=departure_time_markup.create_list(city_from, city_to, track_date))
+            bot.delete_message(call.from_user.id, call.message.id + 1)
+        elif call.message.text == PARSE_INPUT_ROUTE_MSG:
+            bot.send_message(call.from_user.id, choice(LOADING_MSGS))
+            departure_date = bot.user_actioner.get_parse_date(str(call.from_user.id))[0]
+            response = bot.parser.parse(city_from, city_to, departure_date)
+            if response:
+                bot.edit_message_text(str(response), call.message.chat.id, call.message.id + 1)
+            else:
+                bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, call.message.id + 1)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(departure_time_markup.prefix))
@@ -164,8 +183,18 @@ def feedback(message: Message):
 
 
 def feedback_speech(message: Message):
-    bot.send_message(ADMIN_CHAT_ID, FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, message.text))
-    bot.reply_to(message, FEEDBACK_SUBMIT_MSG)
+    bot.reply_to(message, FEEDBACK_CONFIRMATION_MSG)
+    bot.send_message(message.chat.id, FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, message.text))
+    bot.register_next_step_handler(message, feedback_confirmation, message.text)
+
+
+def feedback_confirmation(message: Message, feedback_text: str):
+    if message.text.title().strip() == "Отправить":
+        bot.send_message(ADMIN_CHAT_ID, FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, feedback_text))
+        bot.reply_to(message, FEEDBACK_SUBMIT_MSG)
+        logger.info(f'User @{message.from_user.username} sent feedback: {message.text}')
+    else:
+        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
 
 @bot.message_handler(commands=["announcement_text"])
@@ -178,15 +207,16 @@ def announcement_text(message: Message):
 
 def announcement_text_speech(message: Message):
     bot.reply_to(message, ANNOUNCEMENT_TEXT_CONFIRMATION_MSG)
+    bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_MSG % message.text, parse_mode='Markdown')
     bot.register_next_step_handler(message, announcement_text_confirmation, message.text)
 
 
 def announcement_text_confirmation(message: Message, ann_text: str):
-    if message.text.title().strip() == "Да":
+    if message.text.title().strip() == "Отправить":
         bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_SENT_MSG)
         users = bot.user_actioner.get_all_users()
         for user in users:
-            bot.send_message(user[1], ANNOUNCEMENT_TEXT % ann_text, parse_mode='Markdown')
+            bot.send_message(user[1], ANNOUNCEMENT_TEXT_MSG % ann_text, parse_mode='Markdown')
     else:
         bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
@@ -196,6 +226,23 @@ def announcement_auto(message: Message):
     if not is_admin(message):
         return
     bot.send_message(message.chat.id, FEATURE_NOT_ADDED)
+
+
+@bot.message_handler(commands=["exit"])
+def exit_bot(message: Message):
+    if not is_admin(message):
+        return
+    bot.send_message(message.chat.id, EXIT_CONFIRMATION_MSG, parse_mode='Markdown')
+    bot.register_next_step_handler(message, exit_bot_confirmation)
+
+
+def exit_bot_confirmation(message: Message):
+    if message.text.title().strip() == 'Выключение':
+        bot.send_message(message.chat.id, EXIT_MSG)
+        logger.critical(f'The bot was disabled at the initiative of the administrator @{message.from_user.username}')
+        exit(0)
+    else:
+        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
 
 @bot.message_handler(commands=["secret"])

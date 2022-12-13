@@ -8,11 +8,15 @@ class UserActioner:
 
     GET_TRACK_DATA = 'SELECT track_data FROM users WHERE user_id = %s;'
 
+    GET_PARSE_DATE = 'SELECT parse_date FROM users WHERE user_id = %s;'
+
     CREATE_USER = 'INSERT INTO users (user_id, username, chat_id) VALUES (?, ?, ?);'
 
     UPDATE_NOTIFY_DATA = 'UPDATE users SET notify_data = ? WHERE user_id = ?;'
 
     UPDATE_TRACK_DATA = 'UPDATE users SET track_data = ? WHERE user_id = ?;'
+
+    UPDATE_PARSE_DATE = 'UPDATE users SET parse_date = ? WHERE user_id = ?;'
 
     CREATE_TABLE = """
         CREATE TABLE IF NOT EXISTS users (
@@ -20,7 +24,8 @@ class UserActioner:
             "username" TEXT NOT NULL,
             "chat_id" INTEGER NOT NULL,
             "notify_data" DATE,
-            "track_data" TEXT
+            "track_data" TEXT,
+            "parse_date" DATE
         );
     """
 
@@ -45,6 +50,10 @@ class UserActioner:
         track_data = self.database_client.execute_select_command(self.GET_TRACK_DATA % user_id)
         return track_data[0] if track_data else []
 
+    def get_parse_date(self, user_id: str):
+        parse_date = self.database_client.execute_select_command(self.GET_PARSE_DATE % user_id)
+        return parse_date[0] if parse_date else []
+
     def get_all_users(self):
         return self.database_client.execute_select_command(self.GET_ALL_USERS)
 
@@ -62,3 +71,9 @@ class UserActioner:
             self.database_client.execute_command(self.UPDATE_TRACK_DATA, (updated_data, user_id))
         else:
             self.database_client.execute_command(self.UPDATE_TRACK_DATA, (None, user_id))
+
+    def update_parse_date(self, user_id: str, updated_date: date or None):
+        if updated_date:
+            self.database_client.execute_command(self.UPDATE_PARSE_DATE, (updated_date, user_id))
+        else:
+            self.database_client.execute_command(self.UPDATE_PARSE_DATE, (None, user_id))

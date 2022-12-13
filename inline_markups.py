@@ -188,7 +188,7 @@ class Calendar:
 
         keyboard.add(
             InlineKeyboardButton(
-                "<",
+                "👈🏼",
                 callback_data=calendar_callback.new("PREVIOUS-MONTH", year, month, "!"),
             ),
             InlineKeyboardButton(
@@ -196,7 +196,7 @@ class Calendar:
                 callback_data=calendar_callback.new("CANCEL", year, month, "!"),
             ),
             InlineKeyboardButton(
-                ">", callback_data=calendar_callback.new("NEXT-MONTH", year, month, "!")
+                "👉🏼", callback_data=calendar_callback.new("NEXT-MONTH", year, month, "!")
             ),
         )
 
