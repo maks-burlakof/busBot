@@ -41,6 +41,10 @@ class UserActioner:
         user = self.database_client.execute_select_command(self.GET_USER % user_id)
         return user[0] if user else []
 
+    def get_track_data(self, user_id: str):
+        track_data = self.database_client.execute_select_command(self.GET_TRACK_DATA % user_id)
+        return track_data[0] if track_data else []
+
     def get_all_users(self):
         return self.database_client.execute_select_command(self.GET_ALL_USERS)
 
@@ -58,13 +62,3 @@ class UserActioner:
             self.database_client.execute_command(self.UPDATE_TRACK_DATA, (updated_data, user_id))
         else:
             self.database_client.execute_command(self.UPDATE_TRACK_DATA, (None, user_id))
-
-    def update_track_date(self, user_id: str, updated_date: date):
-        self.database_client.execute_command(self.UPDATE_TRACK_DATA, (updated_date, user_id))
-
-    def update_track_route(self, user_id: str, city_from: str, city_to: str):
-        """
-        Use this method only after update_track_date method, when user's track_data contains only date
-        """
-        track_date = self.database_client.execute_select_command(self.GET_TRACK_DATA % user_id)[0][0]
-        self.database_client.execute_command(self.UPDATE_TRACK_DATA, (f'{city_from} {city_to} {track_date}', user_id))

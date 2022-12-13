@@ -8,7 +8,7 @@ from random import choice
 from message_texts import *
 from clients import *
 from actioners import UserActioner
-from inline_markups import CityMarkup, Calendar, CallbackData, RUSSIAN_LANGUAGE
+from inline_markups import CityMarkup, DepartureTimeMarkup, Calendar, CallbackData, RUSSIAN_LANGUAGE
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
 logger = getLogger(__name__)
@@ -42,9 +42,9 @@ parser = SiteParser()
 bot = MyBot(token=TOKEN, telegram_client=telegram_client, user_actioner=user_actioner, parser=parser)
 
 calendar = Calendar(language=RUSSIAN_LANGUAGE)
-calendar_1_callback = CallbackData("calendar_1", "action", "year", "month", "day")
-calendar_2_callback = CallbackData("calendar_2", "action", "year", "month", "day")
+calendar_callback = CallbackData("calendar", "action", "year", "month", "day")
 city_markup = CityMarkup()
+departure_time_markup = DepartureTimeMarkup(parser=parser)
 
 
 @bot.message_handler(commands=['start'])
@@ -66,7 +66,7 @@ def start(message: Message):
 @bot.message_handler(commands=["notify"])
 def notify(message: Message):
     bot.send_message(message.chat.id, NOTIFY_INPUT_MSG,
-                     reply_markup=calendar.create_calendar(name=calendar_1_callback.prefix))
+                     reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
 
 @bot.message_handler(commands=["parse"])
@@ -91,13 +91,13 @@ def parse_response(message: Message):
 
 @bot.message_handler(commands=["track"])
 def track(message: Message):
-    bot.send_message(message.chat.id, TRACK_INPUT_MSG,
-                     reply_markup=calendar.create_calendar(name=calendar_2_callback.prefix))
+    bot.send_message(message.chat.id, TRACK_INPUT_DATE_MSG,
+                     reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
-# TODO: объединить все в 1, просто поставить в if дополнительное условие
-@bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_1_callback.prefix))
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_callback.prefix))
 def callback_inline_single_calendar(call: CallbackQuery):
-    name, action, year, month, day = call.data.split(calendar_1_callback.sep)
+    name, action, year, month, day = call.data.split(calendar_callback.sep)
     chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
 
     if action == "DAY":
@@ -105,24 +105,12 @@ def callback_inline_single_calendar(call: CallbackQuery):
         if not bot.parser.is_input_correct(date=chosen_date):
             bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS), reply_markup=ReplyKeyboardRemove())
             return
-        bot.user_actioner.update_notify_data(user_id=str(call.from_user.id), updated_date=chosen_date)
-        bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
-    elif action == "CANCEL":
-        bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_2_callback.prefix))
-def callback_inline_calendar_then_cities(call: CallbackQuery):
-    name, action, year, month, day = call.data.split(calendar_2_callback.sep)
-    chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
-
-    if action == "DAY":
-        # TODO: не выводить в календаре прошлые даты и не нужна будет эта проверка
-        if not bot.parser.is_input_correct(date=chosen_date):
-            bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS), reply_markup=ReplyKeyboardRemove())
-            return
-        bot.user_actioner.update_track_date(user_id=str(call.from_user.id), updated_date=chosen_date)
-        bot.send_message(call.from_user.id, "Text", reply_markup=city_markup.create_table())
+        if call.message.text == NOTIFY_INPUT_MSG:
+            bot.user_actioner.update_notify_data(user_id=str(call.from_user.id), updated_date=chosen_date)
+            bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+        elif call.message.text == TRACK_INPUT_DATE_MSG:
+            bot.user_actioner.update_track_data(user_id=str(call.from_user.id), updated_data=str(chosen_date))
+            bot.send_message(call.from_user.id, TRACK_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
     elif action == "CANCEL":
         bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
 
@@ -135,9 +123,21 @@ def callback_inline_cities(call: CallbackQuery):
                               reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
     elif action == 'SUBMIT':
         bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
-        bot.user_actioner.update_track_route(str(call.from_user.id), city_from, city_to)
+        track_date = bot.user_actioner.get_track_data(str(call.from_user.id))[0]
+        bot.user_actioner.update_track_data(str(call.from_user.id), f'{track_date} {city_from} {city_to}')
         bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
-        # TODO: сделать markup на выбор времени отправления рейса
+        bot.send_message(call.from_user.id, TRACK_INPUT_DEPARTURE_TIME,
+                         reply_markup=departure_time_markup.create_list(city_from, city_to, track_date))
+        bot.delete_message(call.from_user.id, call.message.id + 1)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(departure_time_markup.prefix))
+def callback_inline_departure_time(call: CallbackQuery):
+    name, departure_time = call.data.split(departure_time_markup.sep)
+    bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+    track_data = bot.user_actioner.get_track_data(str(call.from_user.id))[0]
+    bot.user_actioner.update_track_data(str(call.from_user.id), f'{track_data} {departure_time}')
+    bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
 
 
 @bot.message_handler(commands=["settings"])
@@ -196,6 +196,17 @@ def announcement_auto(message: Message):
     if not is_admin(message):
         return
     bot.send_message(message.chat.id, FEATURE_NOT_ADDED)
+
+
+@bot.message_handler(commands=["secret"])
+def secret(message: Message):
+    bot.send_message(message.chat.id, SECRET_MSG, parse_mode='Markdown')
+    bot.send_message(ADMIN_CHAT_ID, f'@{message.from_user.username} отправил |/secret|', parse_mode='Markdown')
+
+
+@bot.message_handler(type=['text'])
+def ordinary_text(message: Message):
+    bot.send_message(message.chat.id, choice(ORDINARY_TEXT_MSGS))
 
 
 def create_err_message(err: Exception) -> str:

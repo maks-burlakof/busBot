@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from telebot import TeleBot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
+from clients import SiteParser
 
 @dataclass
 class Language:
@@ -71,9 +72,9 @@ class CityMarkup:
         """
 
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('Отправление',
+        keyboard.add(InlineKeyboardButton('Отправление:',
                                           callback_data=self.sep.join([self.prefix, 'IGNORE', city_from, city_to])),
-                     InlineKeyboardButton('Прибытие',
+                     InlineKeyboardButton('Прибытие:',
                                           callback_data=self.sep.join([self.prefix, 'IGNORE', city_from, city_to])))
         for city in self.CITY_DATA:
             keyboard.add(InlineKeyboardButton(
@@ -84,8 +85,24 @@ class CityMarkup:
                 city if city != city_to else '👉 ' + city,
                 callback_data=self.sep.join([self.prefix, 'SET' if city != city_to and city != city_from else 'IGNORE',
                                              city_from, city])))
-        keyboard.add(InlineKeyboardButton('Готово!',
-                                          callback_data=self.sep.join([self.prefix, 'SUBMIT', city_from, city_to])))
+        if city_from and city_to:
+            keyboard.add(InlineKeyboardButton('Готово!',
+                                              callback_data=self.sep.join([self.prefix, 'SUBMIT', city_from, city_to])))
+        return keyboard
+
+
+class DepartureTimeMarkup:
+    def __init__(self, parser: SiteParser, prefix: str = 'departure_time_markup'):
+        self.prefix = prefix
+        self.parser = parser
+        self.sep = ' '
+
+    def create_list(self, city_from: str, city_to: str, date: str) -> InlineKeyboardMarkup:
+        keyboard = InlineKeyboardMarkup()
+        data = self.parser.parse(city_from, city_to, date)
+        for bus in data:
+            time = data[bus]['departure_time']
+            keyboard.add(InlineKeyboardButton(time, callback_data=self.sep.join([self.prefix, time])))
         return keyboard
 
 
@@ -175,7 +192,7 @@ class Calendar:
                 callback_data=calendar_callback.new("PREVIOUS-MONTH", year, month, "!"),
             ),
             InlineKeyboardButton(
-                "Cancel",
+                "Отменить",
                 callback_data=calendar_callback.new("CANCEL", year, month, "!"),
             ),
             InlineKeyboardButton(
