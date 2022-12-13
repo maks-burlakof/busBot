@@ -6,6 +6,8 @@ class UserActioner:
 
     GET_ALL_USERS = 'SELECT username, chat_id FROM users'
 
+    GET_TRACK_DATA = 'SELECT track_data FROM users WHERE user_id = %s;'
+
     CREATE_USER = 'INSERT INTO users (user_id, username, chat_id) VALUES (?, ?, ?);'
 
     UPDATE_NOTIFY_DATA = 'UPDATE users SET notify_data = ? WHERE user_id = ?;'
@@ -45,16 +47,24 @@ class UserActioner:
     def create_user(self, user_id: str, username: str, chat_id: int):
         self.database_client.execute_command(self.CREATE_USER, (user_id, username, chat_id))
 
-    def update_notify_data(self, user_id: str, updated_date: str or None):
+    def update_notify_data(self, user_id: str, updated_date: date or None):
         if updated_date:
-            self.database_client.execute_command(self.UPDATE_NOTIFY_DATA,
-                                                 (date(int(updated_date.split('-')[0]), int(updated_date.split('-')[1]),
-                                                       int(updated_date.split('-')[2])), user_id))
+            self.database_client.execute_command(self.UPDATE_NOTIFY_DATA, (updated_date, user_id))
         else:
             self.database_client.execute_command(self.UPDATE_NOTIFY_DATA, (None, user_id))
 
-    def update_track_data(self, user_id: str, updated_date: str or None):
-        if updated_date:
-            self.database_client.execute_command(self.UPDATE_TRACK_DATA, (updated_date, user_id))
+    def update_track_data(self, user_id: str, updated_data: str or None):
+        if updated_data:
+            self.database_client.execute_command(self.UPDATE_TRACK_DATA, (updated_data, user_id))
         else:
             self.database_client.execute_command(self.UPDATE_TRACK_DATA, (None, user_id))
+
+    def update_track_date(self, user_id: str, updated_date: date):
+        self.database_client.execute_command(self.UPDATE_TRACK_DATA, (updated_date, user_id))
+
+    def update_track_route(self, user_id: str, city_from: str, city_to: str):
+        """
+        Use this method only after update_track_date method, when user's track_data contains only date
+        """
+        track_date = self.database_client.execute_select_command(self.GET_TRACK_DATA % user_id)[0][0]
+        self.database_client.execute_command(self.UPDATE_TRACK_DATA, (f'{city_from} {city_to} {track_date}', user_id))

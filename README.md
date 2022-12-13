@@ -25,7 +25,8 @@ The bot will remind you in Telegram when the selected minibuses are available fo
 ```bash
 git clone https://github.com/maks-burlakof/bus_bot.git
 cd bus_bot
-python3 setup.py
+pip install -r requirements.txt
+# set environment variables (below)
 python3 main.py
 ```
 

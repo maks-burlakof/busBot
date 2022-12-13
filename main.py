@@ -1,5 +1,5 @@
 import telebot
-from telebot.types import Message
+from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
 from envparse import Env
 from logging import getLogger, config
 from datetime import date
@@ -8,6 +8,7 @@ from random import choice
 from message_texts import *
 from clients import *
 from actioners import UserActioner
+from inline_markups import CityMarkup, Calendar, CallbackData, RUSSIAN_LANGUAGE
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
 logger = getLogger(__name__)
@@ -40,6 +41,11 @@ user_actioner = UserActioner(SQLiteClient("users.db"))
 parser = SiteParser()
 bot = MyBot(token=TOKEN, telegram_client=telegram_client, user_actioner=user_actioner, parser=parser)
 
+calendar = Calendar(language=RUSSIAN_LANGUAGE)
+calendar_1_callback = CallbackData("calendar_1", "action", "year", "month", "day")
+calendar_2_callback = CallbackData("calendar_2", "action", "year", "month", "day")
+city_markup = CityMarkup()
+
 
 @bot.message_handler(commands=['start'])
 def start(message: Message):
@@ -59,17 +65,8 @@ def start(message: Message):
 
 @bot.message_handler(commands=["notify"])
 def notify(message: Message):
-    bot.send_message(message.chat.id, NOTIFY_INPUT_MSG)
-    bot.register_next_step_handler(message, notify_set)
-
-
-def notify_set(message: Message):
-    notify_data = message.text.strip(' ')
-    if not bot.parser.is_input_correct(date=notify_data):
-        bot.send_message(message.chat.id, choice(NO_BUSES_MSGS))
-        return
-    bot.user_actioner.update_notify_data(user_id=str(message.from_user.id), updated_date=notify_data)
-    bot.send_message(message.chat.id, choice(NOTIFY_TRACK_SET_MSGS))
+    bot.send_message(message.chat.id, NOTIFY_INPUT_MSG,
+                     reply_markup=calendar.create_calendar(name=calendar_1_callback.prefix))
 
 
 @bot.message_handler(commands=["parse"])
@@ -94,18 +91,53 @@ def parse_response(message: Message):
 
 @bot.message_handler(commands=["track"])
 def track(message: Message):
-    bot.send_message(message.chat.id, TRACK_INPUT_MSG)
-    bot.register_next_step_handler(message, track_set)
+    bot.send_message(message.chat.id, TRACK_INPUT_MSG,
+                     reply_markup=calendar.create_calendar(name=calendar_2_callback.prefix))
+
+# TODO: объединить все в 1, просто поставить в if дополнительное условие
+@bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_1_callback.prefix))
+def callback_inline_single_calendar(call: CallbackQuery):
+    name, action, year, month, day = call.data.split(calendar_1_callback.sep)
+    chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
+
+    if action == "DAY":
+        # TODO: не выводить в календаре прошлые даты и не нужна будет эта проверка
+        if not bot.parser.is_input_correct(date=chosen_date):
+            bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS), reply_markup=ReplyKeyboardRemove())
+            return
+        bot.user_actioner.update_notify_data(user_id=str(call.from_user.id), updated_date=chosen_date)
+        bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+    elif action == "CANCEL":
+        bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
 
 
-def track_set(message: Message):
-    bot.send_message(message.chat.id, choice(LOADING_MSGS))
-    track_data = message.text.split(' ')
-    if not bot.parser.is_input_correct(track_data[0], track_data[1], track_data[2], track_data[3]):
-        bot.edit_message_text(choice(NO_BUSES_MSGS), message.chat.id, message.id + 1)
-        return
-    bot.user_actioner.update_track_data(user_id=str(message.from_user.id), updated_date=" ".join(track_data))
-    bot.edit_message_text(choice(NOTIFY_TRACK_SET_MSGS), message.chat.id, message.id + 1)
+@bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_2_callback.prefix))
+def callback_inline_calendar_then_cities(call: CallbackQuery):
+    name, action, year, month, day = call.data.split(calendar_2_callback.sep)
+    chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
+
+    if action == "DAY":
+        # TODO: не выводить в календаре прошлые даты и не нужна будет эта проверка
+        if not bot.parser.is_input_correct(date=chosen_date):
+            bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS), reply_markup=ReplyKeyboardRemove())
+            return
+        bot.user_actioner.update_track_date(user_id=str(call.from_user.id), updated_date=chosen_date)
+        bot.send_message(call.from_user.id, "Text", reply_markup=city_markup.create_table())
+    elif action == "CANCEL":
+        bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(city_markup.prefix))
+def callback_inline_cities(call: CallbackQuery):
+    name, action, city_from, city_to = call.data.split(city_markup.sep)
+    if action == 'SET':
+        bot.edit_message_text(str(call.data), call.message.chat.id, call.message.message_id,
+                              reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
+    elif action == 'SUBMIT':
+        bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+        bot.user_actioner.update_track_route(str(call.from_user.id), city_from, city_to)
+        bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
+        # TODO: сделать markup на выбор времени отправления рейса
 
 
 @bot.message_handler(commands=["settings"])
@@ -156,7 +188,7 @@ def announcement_text_confirmation(message: Message, ann_text: str):
         for user in users:
             bot.send_message(user[1], ANNOUNCEMENT_TEXT % ann_text, parse_mode='Markdown')
     else:
-        bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_CANCELED_MSG)
+        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
 
 @bot.message_handler(commands=["announcement_auto"])

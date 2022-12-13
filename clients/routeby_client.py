@@ -6,6 +6,7 @@ import datetime
 
 
 class SiteParser:
+    # TODO: брать CITY_DATA из json в корне проекта
     CITY_DATA = {
         "Шумилино": "c621986",
         "Витебск": "c620127",
@@ -20,9 +21,8 @@ class SiteParser:
         self.options.add_experimental_option("prefs", {'profile.managed_default_content_settings.javascript': 3})
 
     def is_input_correct(self, city_from: str = None, city_to: str = None,
-                         date: str = None, departure_time: str = None):
-        if date and datetime.date(int(date.split('-')[0]), int(date.split('-')[1]), int(date.split('-')[2])) < \
-                datetime.date.today():
+                         date: datetime.date = None, departure_time: str = None):
+        if date and date < datetime.date.today():
             return False
         if departure_time:
             url = self.prepare_url(city_from, city_to, date)
