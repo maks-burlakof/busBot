@@ -106,6 +106,18 @@ class DepartureTimeMarkup:
         return keyboard
 
 
+class ChangeValueMarkup:
+    def __init__(self, prefix: str = 'change_value_markup'):
+        self.prefix = prefix
+        self.sep = ':'
+
+    def create(self) -> InlineKeyboardMarkup:
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton('✅ Изменить значение', callback_data=self.sep.join([self.prefix, 'CHANGE'])))
+        keyboard.add(InlineKeyboardButton('⛔️ Выйти без изменений', callback_data=self.sep.join([self.prefix, 'CANCEL'])))
+        return keyboard
+
+
 class Calendar:
     """
     Calendar data factory
