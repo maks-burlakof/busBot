@@ -105,7 +105,7 @@ def track(message: Message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith(change_value_markup.prefix))
 def callback_inline_change_value(call: CallbackQuery):
     name, action = call.data.split(calendar_callback.sep)
-    bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+    bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
     if action == 'CHANGE':
         if call.message.text[:call.message.text.find('\n')] == NOTIFY_EXISTS_MSG[:NOTIFY_EXISTS_MSG.find('\n')]:
             bot.send_message(call.message.chat.id, NOTIFY_INPUT_MSG,
@@ -128,13 +128,13 @@ def callback_inline_single_calendar(call: CallbackQuery):
             bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS), reply_markup=ReplyKeyboardRemove())
             return
         if call.message.text == NOTIFY_INPUT_MSG:
-            bot.user_actioner.update_notify_date(user_id=str(call.from_user.id), updated_date=chosen_date)
+            bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
             bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
         elif call.message.text == TRACK_INPUT_DATE_MSG:
-            bot.user_actioner.update_track_data(user_id=str(call.from_user.id), updated_data=str(chosen_date))
+            bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=str(chosen_date))
             bot.send_message(call.from_user.id, TRACK_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
         elif call.message.text == PARSE_INPUT_MSG:
-            bot.user_actioner.update_parse_date(user_id=str(call.from_user.id), updated_date=chosen_date)
+            bot.user_actioner.update_parse_date(user_id=call.from_user.id, updated_date=chosen_date)
             bot.send_message(call.from_user.id, PARSE_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
     elif action == "CANCEL":
         bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
@@ -144,33 +144,35 @@ def callback_inline_single_calendar(call: CallbackQuery):
 def callback_inline_cities(call: CallbackQuery):
     name, action, city_from, city_to = call.data.split(city_markup.sep)
     if action == 'SET':
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id,
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.id,
                                       reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
     elif action == 'SUBMIT':
-        bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+        bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
         if call.message.text == TRACK_INPUT_ROUTE_MSG:
             track_date = bot.user_actioner.get_user(call.from_user.id)[4]
-            bot.user_actioner.update_track_data(str(call.from_user.id), f'{track_date} {city_from} {city_to}')
-            bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
+            bot.user_actioner.update_track_data(user_id=call.from_user.id,
+                                                updated_data=f'{track_date} {city_from} {city_to}')
+            msg = bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
             bot.send_message(call.from_user.id, TRACK_INPUT_DEPARTURE_TIME,
                              reply_markup=departure_time_markup.create_list(city_from, city_to, track_date))
-            bot.delete_message(call.from_user.id, call.message.id + 1)
+            bot.delete_message(call.from_user.id, msg.id)
         elif call.message.text == PARSE_INPUT_ROUTE_MSG:
-            bot.send_message(call.from_user.id, choice(LOADING_MSGS))
+            msg = bot.send_message(call.from_user.id, choice(LOADING_MSGS))
             departure_date = bot.user_actioner.get_user(call.from_user.id)[5]
             response = bot.parser.parse(city_from, city_to, departure_date)
             if response:
-                bot.edit_message_text(str(response), call.message.chat.id, call.message.id + 1)
+                bot.edit_message_text(PARSE_RESPONSE_HEADER_MSG % (city_from, city_to, departure_date) + str(response),
+                                      call.message.chat.id, msg.id, parse_mode='Markdown')
             else:
-                bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, call.message.id + 1)
+                bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, msg.id)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(departure_time_markup.prefix))
 def callback_inline_departure_time(call: CallbackQuery):
     name, departure_time = call.data.split(departure_time_markup.sep)
-    bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+    bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
     track_data = bot.user_actioner.get_user(call.from_user.id)[4]
-    bot.user_actioner.update_track_data(str(call.from_user.id), f'{track_data} {departure_time}')
+    bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=f'{track_data} {departure_time}')
     bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
 
 
@@ -189,6 +191,12 @@ def extra(message: Message):
 @bot.message_handler(commands=["description"])
 def description(message: Message):
     bot.send_message(message.chat.id, DESCRIPTION_MSG, parse_mode='Markdown')
+    users = bot.user_actioner.get_all_users()
+    user_count = len(users)
+    notify_count = user_count - [user[2] for user in users].count(None)
+    track_count = user_count - [user[3] for user in users].count(None)
+    bot.send_message(message.chat.id, STATISTICS_MSG % (len(users), notify_count, track_count),
+                     parse_mode='Markdown')
 
 
 @bot.message_handler(commands=["faq"])
@@ -246,6 +254,16 @@ def announcement_auto(message: Message):
     if not is_admin(message):
         return
     bot.send_message(message.chat.id, FEATURE_NOT_ADDED)
+
+
+@bot.message_handler(commands=["users"])
+def users_list(message: Message):
+    if not is_admin(message):
+        return
+    users = bot.user_actioner.get_all_users()
+    response = "@"
+    response += "\n@".join([user[0] for user in users])
+    bot.send_message(message.chat.id, USER_LIST + response, parse_mode='HTML')
 
 
 @bot.message_handler(commands=["exit"])

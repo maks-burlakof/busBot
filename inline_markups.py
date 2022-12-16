@@ -102,7 +102,8 @@ class DepartureTimeMarkup:
         data = self.parser.parse(city_from, city_to, date)
         for bus in data:
             time = data[bus]['departure_time']
-            keyboard.add(InlineKeyboardButton(time, callback_data=self.sep.join([self.prefix, time])))
+            keyboard.add(InlineKeyboardButton(f"{time} ({data[bus]['free_places_info']})",
+                                              callback_data=self.sep.join([self.prefix, time])))
         return keyboard
 
 
