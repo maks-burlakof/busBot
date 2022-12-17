@@ -10,7 +10,8 @@ import locale
 from message_texts import *
 from clients import *
 from actioners import UserActioner
-from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, Calendar, CallbackData, RUSSIAN_LANGUAGE
+from workers.reminder import TIME_DELTA
+from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, Calendar, CallbackData
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -44,7 +45,7 @@ user_actioner = UserActioner(SQLiteClient("users.db"))
 parser = SiteParser()
 bot = MyBot(token=TOKEN, telegram_client=telegram_client, user_actioner=user_actioner, parser=parser)
 
-calendar = Calendar(language=RUSSIAN_LANGUAGE)
+calendar = Calendar()
 calendar_callback = CallbackData("calendar", "action", "year", "month", "day")
 city_markup = CityMarkup()
 departure_time_markup = DepartureTimeMarkup(parser=parser)
@@ -92,11 +93,15 @@ def track(message: Message):
     track_data = bot.user_actioner.get_user(message.from_user.id)[4]
     if track_data:
         track_data = track_data.split(' ')
-        d, m, y = [int(i) for i in track_data[0].split('-')]
-        track_date = date(d, m, y)
-        bot.send_message(message.chat.id, TRACK_EXISTS_MSG % (track_date.strftime('%d %B %Yг. (%a)'),
-                                                              track_data[1], track_data[2], track_data[3]),
-                         reply_markup=change_value_markup.create())
+        y, m, d = [int(i) for i in track_data[0].split('-')]
+        track_date = date(y, m, d)
+        try:
+            bot.send_message(message.chat.id, TRACK_EXISTS_MSG % (track_date.strftime('%d %B %Yг. (%a)'),
+                                                                  track_data[1], track_data[2], track_data[3]),
+                             reply_markup=change_value_markup.create())
+        except IndexError:
+            bot.user_actioner.update_track_data(message.from_user.id, None)
+            track(message)
     else:
         bot.send_message(message.chat.id, TRACK_INPUT_DATE_MSG,
                          reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
@@ -123,13 +128,12 @@ def callback_inline_single_calendar(call: CallbackQuery):
     chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
 
     if action == "DAY":
-        # TODO: не выводить в календаре прошлые даты и не нужна будет эта проверка
-        if not bot.parser.is_input_correct(date=chosen_date):
-            bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS), reply_markup=ReplyKeyboardRemove())
-            return
         if call.message.text == NOTIFY_INPUT_MSG:
-            bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
-            bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+            if (date(int(year), int(month), int(day)) - date.today()).days <= 29:
+                bot.send_message(call.from_user.id, choice(NOTIFY_BUS_EXISTS))
+            else:
+                bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
+                bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
         elif call.message.text == TRACK_INPUT_DATE_MSG:
             bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=str(chosen_date))
             bot.send_message(call.from_user.id, TRACK_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
@@ -169,11 +173,14 @@ def callback_inline_cities(call: CallbackQuery):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(departure_time_markup.prefix))
 def callback_inline_departure_time(call: CallbackQuery):
-    name, departure_time = call.data.split(departure_time_markup.sep)
+    name, departure_time, free_places = call.data.split(departure_time_markup.sep)
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
-    track_data = bot.user_actioner.get_user(call.from_user.id)[4]
-    bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=f'{track_data} {departure_time}')
-    bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+    if 'Нет мест' in free_places:
+        track_data = bot.user_actioner.get_user(call.from_user.id)[4]
+        bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=f'{track_data} {departure_time}')
+        bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+    else:
+        bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS))
 
 
 @bot.message_handler(commands=["settings"])
@@ -218,7 +225,7 @@ def feedback_speech(message: Message):
 
 def feedback_confirmation(message: Message, feedback_text: str):
     if message.text.title().strip() == "Отправить":
-        bot.send_message(ADMIN_CHAT_ID, FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, feedback_text))
+        bot.send_message(ADMIN_CHAT_ID, '#INFO:' + FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, feedback_text))
         bot.reply_to(message, FEEDBACK_SUBMIT_MSG)
         logger.info(f'User @{message.from_user.username} sent feedback: {message.text}')
     else:
@@ -266,6 +273,17 @@ def users_list(message: Message):
     bot.send_message(message.chat.id, USER_LIST + response, parse_mode='HTML')
 
 
+@bot.message_handler(commands=["database"])
+def database_view(message: Message):
+    if not is_admin(message):
+        return
+    users = bot.user_actioner.get_all_users()
+    response = ''
+    for user in users:
+        response += f'@{user[0]}\n🔹 {user[2]}\n🔸 {user[3]}\n'
+    bot.send_message(message.chat.id, DATABASE_LIST + response, parse_mode='HTML')
+
+
 @bot.message_handler(commands=["exit"])
 def exit_bot(message: Message):
     if not is_admin(message):
@@ -285,17 +303,13 @@ def exit_bot_confirmation(message: Message):
 
 @bot.message_handler(commands=["secret"])
 def secret(message: Message):
-    bot.send_message(message.chat.id, SECRET_MSG, parse_mode='Markdown')
-    bot.send_message(ADMIN_CHAT_ID, f'@{message.from_user.username} отправил |/secret|', parse_mode='Markdown')
+    bot.send_message(message.chat.id, SECRET_MSG, parse_mode='MarkdownV2')
+    bot.send_message(ADMIN_CHAT_ID, f'#INFO: @{message.from_user.username} отправил /secret')
 
 
 @bot.message_handler()
 def ordinary_text(message: Message):
     bot.send_message(message.chat.id, choice(ORDINARY_TEXT_MSGS))
-
-
-def create_err_message(err: Exception) -> str:
-    return f"{date.today()} ::: {err.__class__} ::: {err}"
 
 
 def is_admin(message):
@@ -311,7 +325,8 @@ while True:
         bot.setup_resources()
         bot.polling()
     except Exception as err:
-        bot.telegram_client.post(method="sendMessage", params={"text": create_err_message(err),
-                                                               "chat_id": ADMIN_CHAT_ID})
+        bot.telegram_client.post(method="sendMessage",
+                                 params={"text": f"#ERROR: {date.today()} ::: {err.__class__} ::: {err}",
+                                         "chat_id": ADMIN_CHAT_ID})
         logger.error(f"{err.__class__} - {err}")
         bot.shutdown()

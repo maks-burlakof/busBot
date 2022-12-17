@@ -1,5 +1,3 @@
-# SOURCE: https://github.com/FlymeDllVa/Telebot-Calendar.git
-
 import datetime
 import calendar
 import json
@@ -95,15 +93,16 @@ class DepartureTimeMarkup:
     def __init__(self, parser: SiteParser, prefix: str = 'departure_time_markup'):
         self.prefix = prefix
         self.parser = parser
-        self.sep = ' '
+        self.sep = ';'
 
     def create_list(self, city_from: str, city_to: str, date: str) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         data = self.parser.parse(city_from, city_to, date)
         for bus in data:
             time = data[bus]['departure_time']
-            keyboard.add(InlineKeyboardButton(f"{time} ({data[bus]['free_places_info']})",
-                                              callback_data=self.sep.join([self.prefix, time])))
+            free_places = data[bus]['free_places_info']
+            keyboard.add(InlineKeyboardButton(f"{time} ({free_places})",
+                                              callback_data=self.sep.join([self.prefix, time, free_places])))
         return keyboard
 
 
@@ -114,8 +113,8 @@ class ChangeValueMarkup:
 
     def create(self) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('✅ Изменить значение', callback_data=self.sep.join([self.prefix, 'CHANGE'])))
-        keyboard.add(InlineKeyboardButton('⛔️ Выйти без изменений', callback_data=self.sep.join([self.prefix, 'CANCEL'])))
+        keyboard.add(InlineKeyboardButton('✅ Изменить', callback_data=self.sep.join([self.prefix, 'CHANGE'])))
+        keyboard.add(InlineKeyboardButton('⛔️ Выйти', callback_data=self.sep.join([self.prefix, 'CANCEL'])))
         return keyboard
 
 
@@ -126,15 +125,10 @@ class Calendar:
 
     __lang: Language
 
-    def __init__(self, language: Language = ENGLISH_LANGUAGE):
+    def __init__(self, language: Language = RUSSIAN_LANGUAGE):
         self.__lang = language
 
-    def create_calendar(
-        self,
-        name: str = "calendar",
-        year: int = None,
-        month: int = None,
-    ) -> InlineKeyboardMarkup:
+    def create_calendar(self, name: str = "calendar", year: int = None, month: int = None) -> InlineKeyboardMarkup:
         """
         Create a built in inline keyboard with calendar
 
@@ -175,49 +169,34 @@ class Calendar:
             row = list()
             for day in week:
                 if day == 0:
-                    row.append(InlineKeyboardButton(" ", callback_data=data_ignore))
-                elif (
-                    f"{now_day.day}.{now_day.month}.{now_day.year}"
-                    == f"{day}.{month}.{year}"
-                ):
-                    row.append(
-                        InlineKeyboardButton(
-                            f"({day})",
-                            callback_data=calendar_callback.new(
-                                "DAY", year, month, day
-                            ),
-                        )
-                    )
+                    row.append(InlineKeyboardButton(" ",
+                                                    callback_data=data_ignore))
+                elif f"{now_day.day}.{now_day.month}.{now_day.year}" == f"{day}.{month}.{year}":
+                    row.append(InlineKeyboardButton(f"({day})",
+                                                    callback_data=calendar_callback.new("DAY", year, month, day)))
+                elif datetime.datetime(year, month, day) < now_day:
+                    row.append(InlineKeyboardButton(" ",
+                                                    callback_data=data_ignore))
                 else:
-                    row.append(
-                        InlineKeyboardButton(
-                            str(day),
-                            callback_data=calendar_callback.new(
-                                "DAY", year, month, day
-                            ),
-                        )
-                    )
+                    row.append(InlineKeyboardButton(str(day),
+                                                    callback_data=calendar_callback.new("DAY", year, month, day)))
             keyboard.add(*row)
 
-        keyboard.add(
-            InlineKeyboardButton(
-                "👈🏼",
-                callback_data=calendar_callback.new("PREVIOUS-MONTH", year, month, "!"),
-            ),
-            InlineKeyboardButton(
-                "Отменить",
-                callback_data=calendar_callback.new("CANCEL", year, month, "!"),
-            ),
-            InlineKeyboardButton(
-                "👉🏼", callback_data=calendar_callback.new("NEXT-MONTH", year, month, "!")
-            ),
-        )
-
+        if month == now_day.month:
+            keyboard.add(InlineKeyboardButton("Отменить",
+                                              callback_data=calendar_callback.new("CANCEL", year, month, "!")),
+                         InlineKeyboardButton("👉🏼",
+                                              callback_data=calendar_callback.new("NEXT-MONTH", year, month, "!")))
+        else:
+            keyboard.add(InlineKeyboardButton("👈🏼",
+                                              callback_data=calendar_callback.new("PREVIOUS-MONTH", year, month, "!")),
+                         InlineKeyboardButton("Отменить",
+                                              callback_data=calendar_callback.new("CANCEL", year, month, "!")),
+                         InlineKeyboardButton("👉🏼",
+                                              callback_data=calendar_callback.new("NEXT-MONTH", year, month, "!")))
         return keyboard
 
-    def create_months_calendar(
-        self, name: str = "calendar", year: int = None
-    ) -> InlineKeyboardMarkup:
+    def create_months_calendar(self, name: str = "calendar", year: int = None) -> InlineKeyboardMarkup:
         """
         Creates a calendar with month selection
 

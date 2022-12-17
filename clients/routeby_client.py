@@ -20,16 +20,6 @@ class SiteParser:
         self.options.headless = headless
         self.options.add_experimental_option("prefs", {'profile.managed_default_content_settings.javascript': 3})
 
-    def is_input_correct(self, city_from: str = None, city_to: str = None,
-                         date: datetime.date = None, departure_time: str = None):
-        if date and date < datetime.date.today():
-            return False
-        if departure_time:
-            url = self.prepare_url(city_from, city_to, date)
-            if departure_time not in self.get_page_text(url=url):
-                return False
-        return True
-
     def prepare_url(self, city_from: str, city_to: str, date: str):
         key_from = self.CITY_DATA.get(city_from)
         key_to = self.CITY_DATA.get(city_to)
@@ -44,21 +34,16 @@ class SiteParser:
         driver.quit()
         return text
 
+    # TODO: убрать?
     def check_buses(self, city_from: str, city_to: str, date: str):
         url = self.prepare_url(city_from, city_to, date)
         text = self.get_page_text(url=url)
         return False if 'Билеты не найдены' or 'Рейсов не найдено' in text else True
 
-    def is_available_buses(self, text: list):
-        if 'Рейсов не найдено' in text or 'Билеты не найдены' in text:
-            return False
-        else:
-            return True
-
     def parse(self, city_from: str, city_to: str, date: str):
         url = self.prepare_url(city_from, city_to, date)
         text = self.get_page_text(url=url)
-        if not self.is_available_buses(text):
+        if 'Рейсов не найдено' in text or 'Билеты не найдены' in text:
             return {}
         response = {}
         i_begin = 0
