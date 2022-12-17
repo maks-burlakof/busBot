@@ -77,7 +77,10 @@ class SiteParser:
         url = self.prepare_url(city_from, city_to, date)
         text = self.get_page_text(url=url)
         c = 1 if str(datetime.date.today()) != date else 0  # correction
-        date_index = text.index(departure_time)
+        try:
+            date_index = text.index(departure_time)
+        except ValueError:
+            return 0
         if 'Br' in text[date_index + 6+c]:
             return text[date_index + 8+c]
         else:

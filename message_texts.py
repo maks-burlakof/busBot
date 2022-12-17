@@ -53,8 +53,7 @@ TRACK_INPUT_ROUTE_MSG = 'Укажи маршрут рейса:'
 
 TRACK_INPUT_DEPARTURE_TIME = '🕓 Выбери время отправления рейса:'
 
-TRACK_MSG = '🔔 *Появились свободные места* на рейс %s \n' \
-            '%s - %s в %s\n' \
+TRACK_MSG = '🔔 *Появились свободные места!*\n 📆 %s\n%s 👉🏼 %s\n🕓 %s\n' \
             'Успей заказать!'
 
 TRACK_FREE_PLACES_EXISTS = [

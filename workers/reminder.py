@@ -1,5 +1,5 @@
 from logging import getLogger, config
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from os import environ
 
 from message_texts import *
@@ -45,12 +45,19 @@ class Reminder:
 
     def track(self, track_ids: list):
         for chat_id, user_id, track_data in track_ids:
-            track_data = track_data.split()
-            if self.parser.get_free_seats(track_data[0], track_data[1], track_data[2], track_data[3]):
+            try:
+                track_date, city_from, city_to, departure_time = track_data.split()
+            except ValueError:
+                self.user_actioner.update_track_data(user_id, None)
+                continue
+            if datetime.strptime(f'{track_date} {departure_time}', '%Y-%m-%d %H:%M') < datetime.today():
+                self.user_actioner.update_track_data(user_id, None)
+                continue
+            if self.parser.get_free_seats(city_from, city_to, track_date, departure_time):
                 res = self.telegram_client.post(method="sendMessage", params={
-                    "text": TRACK_MSG % (track_data[2], track_data[0], track_data[1], track_data[3]),
+                    "text": TRACK_MSG % (track_date, city_from, city_to, departure_time),
                     "chat_id": chat_id,
-                    "parse_mode": 'markdown'})
+                    "parse_mode": 'Markdown'})
                 self.user_actioner.update_track_data(user_id=user_id, updated_data=None)
                 logger.info(res)
 

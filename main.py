@@ -177,10 +177,11 @@ def callback_inline_departure_time(call: CallbackQuery):
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
     if 'Нет мест' in free_places:
         track_data = bot.user_actioner.get_user(call.from_user.id)[4]
-        bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=f'{track_data} {departure_time}')
+        bot.user_actioner.update_track_data(call.from_user.id, f'{track_data} {departure_time}')
         bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
     else:
         bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS))
+        bot.user_actioner.update_track_data(call.from_user.id, None)
 
 
 @bot.message_handler(commands=["settings"])
