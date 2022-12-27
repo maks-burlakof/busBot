@@ -1,6 +1,7 @@
 from logging import getLogger, config
 from datetime import date, timedelta, datetime
 from os import environ
+from time import time
 
 from message_texts import *
 from clients import *
@@ -13,6 +14,10 @@ TOKEN = environ.get("TOKEN")
 
 # days before the bus
 TIME_DELTA = 29
+
+# allowed working time for scripts
+MAX_NOTIFY_TIME = 60
+MAX_TRACK_TIME = 40
 
 
 class Reminder:
@@ -34,6 +39,11 @@ class Reminder:
 
     def shutdown(self):
         self.database_client.close_conn()
+
+    @staticmethod
+    def check_working_time(start_time: float, end_time: float):
+        if end_time - start_time > MAX_TRACK_TIME:
+            logger.error('Script time limit exceeded!')
 
     def notify(self, notify_ids: list):
         for chat_id, user_id in notify_ids:
@@ -65,16 +75,22 @@ class Reminder:
         if not self.setted_up:
             logger.error("Resources in worker.reminder has not been set up!")
             return
-        logger.info('The execute_notify function is called')
+        logger.debug('The execute_notify function is called')
+        start_time = time()
         notify_ids = self.database_client.execute_select_command(self.GET_NOTIFY_DATE)
         if notify_ids:
             self.notify(notify_ids)
+        end_time = time()
+        self.check_working_time(start_time, end_time)
 
     def execute_track(self):
         if not self.setted_up:
             logger.error("Resources in worker.reminder has not been set up!")
             return
-        logger.info('The execute_track function is called')
+        logger.debug('The execute_track function is called')
+        start_time = time()
         track_ids = self.database_client.execute_select_command(self.GET_TRACK_DATA)
         if track_ids:
             self.track(track_ids)
+        end_time = time()
+        self.check_working_time(start_time, end_time)

@@ -10,7 +10,6 @@ import locale
 from message_texts import *
 from clients import *
 from actioners import UserActioner
-from workers.reminder import TIME_DELTA
 from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, Calendar, CallbackData
 
 locale.setlocale(locale.LC_ALL, '')
