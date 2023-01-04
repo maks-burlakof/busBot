@@ -5,7 +5,6 @@ from clients import SQLiteClient
 class UserActioner:
     GET_USER = 'SELECT user_id, username, chat_id, notify_date, track_data, parse_date  FROM users WHERE user_id = %s;'
     GET_ALL_USERS = 'SELECT username, chat_id, notify_date, track_data FROM users'
-    GET_MESSAGE_ID = 'SELECT message_id FROM users WHERE user_id = %s;'
     CREATE_USER = 'INSERT INTO users (user_id, username, chat_id) VALUES (?, ?, ?);'
     UPDATE_NOTIFY_DATE = 'UPDATE users SET notify_date = ? WHERE user_id = ?;'
     UPDATE_PARSE_DATE = 'UPDATE users SET parse_date = ? WHERE user_id = ?;'

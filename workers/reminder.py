@@ -6,6 +6,7 @@ from time import time
 from message_texts import *
 from clients import *
 from actioners import UserActioner
+from inline_markups import BuyTicketMarkup
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
 logger = getLogger(__name__)
@@ -31,6 +32,7 @@ class Reminder:
         self.database_client = database_client
         self.user_actioner = user_actioner
         self.parser = parser
+        self.buy_ticket_markup = BuyTicketMarkup()
         self.setted_up = False
 
     def setup(self):
@@ -51,7 +53,7 @@ class Reminder:
                 "text": NOTIFY_MSG % str(date.today() + timedelta(days=TIME_DELTA)),
                 "chat_id": chat_id})
             self.user_actioner.update_notify_date(user_id=user_id, updated_date=None)
-            logger.info(res)
+            logger.debug(res)
 
     def track(self, track_ids: list):
         for chat_id, user_id, track_data in track_ids:
@@ -67,9 +69,10 @@ class Reminder:
                 res = self.telegram_client.post(method="sendMessage", params={
                     "text": TRACK_MSG % (track_date, city_from, city_to, departure_time),
                     "chat_id": chat_id,
-                    "parse_mode": 'Markdown'})
+                    "parse_mode": 'Markdown',
+                    "reply_markup": self.buy_ticket_markup.create(city_from, city_to, track_date).to_json()})
                 self.user_actioner.update_track_data(user_id=user_id, updated_data=None)
-                logger.info(res)
+                logger.debug(res)
 
     def execute_notify(self):
         if not self.setted_up:

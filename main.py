@@ -6,11 +6,12 @@ from random import choice
 from sys import exit
 from os import environ
 import locale
+import json
 
 from message_texts import *
 from clients import *
 from actioners import UserActioner
-from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, Calendar, CallbackData
+from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, BuyTicketMarkup, Calendar, CallbackData
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -48,6 +49,7 @@ calendar = Calendar()
 calendar_callback = CallbackData("calendar", "action", "year", "month", "day")
 city_markup = CityMarkup()
 departure_time_markup = DepartureTimeMarkup(parser=parser)
+buy_ticket_markup = BuyTicketMarkup()
 change_value_markup = ChangeValueMarkup()
 
 
@@ -56,7 +58,8 @@ def start(message: Message):
     user_id = message.from_user.id
     username = message.from_user.username
     chat_id = message.chat.id
-
+    if not is_allowed_user(message):
+        return
     user = bot.user_actioner.get_user(user_id)
     if not user:
         bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEG0ZJjmPVT7_NYus3XFkwVDIaW0hQ7gwACpgwAAl3b6EuwssAGdg1yFSwE')
@@ -70,6 +73,8 @@ def start(message: Message):
 
 @bot.message_handler(commands=["notify"])
 def notify(message: Message):
+    if not is_allowed_user(message):
+        return
     notify_date = bot.user_actioner.get_user(message.from_user.id)[3]
     if notify_date:
         d, m, y = [int(i) for i in notify_date.split('-')]
@@ -83,12 +88,16 @@ def notify(message: Message):
 
 @bot.message_handler(commands=["parse"])
 def parse(message: Message):
+    if not is_allowed_user(message):
+        return
     bot.send_message(message.chat.id, PARSE_INPUT_MSG,
                      reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
 
 @bot.message_handler(commands=["track"])
 def track(message: Message):
+    if not is_allowed_user(message):
+        return
     track_data = bot.user_actioner.get_user(message.from_user.id)[4]
     if track_data:
         track_data = track_data.split(' ')
@@ -125,7 +134,6 @@ def callback_inline_change_value(call: CallbackQuery):
 def callback_inline_single_calendar(call: CallbackQuery):
     name, action, year, month, day = call.data.split(calendar_callback.sep)
     chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
-
     if action == "DAY":
         if call.message.text == NOTIFY_INPUT_MSG:
             if (date(int(year), int(month), int(day)) - date.today()).days <= 29:
@@ -165,7 +173,8 @@ def callback_inline_cities(call: CallbackQuery):
             response = bot.parser.parse(city_from, city_to, departure_date)
             if response:
                 bot.edit_message_text(PARSE_RESPONSE_HEADER_MSG % (city_from, city_to, departure_date) + str(response),
-                                      call.message.chat.id, msg.id, parse_mode='Markdown')
+                                      call.message.chat.id, msg.id, parse_mode='Markdown',
+                                      reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
             else:
                 bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, msg.id)
 
@@ -173,14 +182,24 @@ def callback_inline_cities(call: CallbackQuery):
 @bot.callback_query_handler(func=lambda call: call.data.startswith(departure_time_markup.prefix))
 def callback_inline_departure_time(call: CallbackQuery):
     name, departure_time, free_places = call.data.split(departure_time_markup.sep)
+    track_data = bot.user_actioner.get_user(call.from_user.id)[4]
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
     if 'Нет мест' in free_places:
-        track_data = bot.user_actioner.get_user(call.from_user.id)[4]
         bot.user_actioner.update_track_data(call.from_user.id, f'{track_data} {departure_time}')
         bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
     else:
-        bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS))
+        departure_date, city_from, city_to = track_data.split(' ')
+        bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS),
+                         reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
         bot.user_actioner.update_track_data(call.from_user.id, None)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(buy_ticket_markup.prefix))
+def callback_inline_buy_ticket(call: CallbackQuery):
+    name, city_from, city_to, departure_date = call.data.split(buy_ticket_markup.sep)
+    url = bot.parser.prepare_url(city_from, city_to, departure_date)
+    bot.send_message(call.from_user.id, choice(URL_TO_SITE_MSG) % url, parse_mode='Markdown',
+                     reply_markup=ReplyKeyboardRemove())
 
 
 @bot.message_handler(commands=["settings"])
@@ -301,6 +320,65 @@ def exit_bot_confirmation(message: Message):
         bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
 
+@bot.message_handler(commands=["register"])
+def register(message: Message):
+    bot.send_message(message.chat.id, REGISTER_MSG)
+    bot.register_next_step_handler(message, register_confirmation)
+
+
+def register_confirmation(message: Message):
+    f = open('invite_codes.json', 'r')
+    code = message.text.strip(' ')
+    codes = json.loads(f.read())
+    f.close()
+    if code not in codes:
+        bot.send_message(message.chat.id, REGISTER_CODE_INCORRECT_MSG)
+        return False
+    else:
+        codes.remove(code)
+        with open('invite_codes.json', 'w') as f:
+            json.dump(codes, f, indent=4)
+        f = open('user_whitelist.json', 'r')
+        users = json.loads(f.read())
+        f.close()
+        users.append(message.from_user.username)
+        with open('user_whitelist.json', 'r+') as f:
+            json.dump(users, f, indent=4)
+        logger.info(f"User @{message.from_user.username} used an invitation code")
+        bot.send_message(message.chat.id, REGISTER_CODE_CORRECT_MSG)
+        start(message)
+        return True
+
+
+@bot.message_handler(commands=["send_invite_codes"])
+def send_invite_codes(message: Message):
+    if not is_admin(message):
+        return
+    with open('invite_codes.json', 'r') as f:
+        msg = "\n".join(f"`{line}`" for line in json.loads(f.read()))
+    bot.send_message(message.chat.id, msg, parse_mode='MarkdownV2')
+
+
+@bot.message_handler(commands=["logs"])
+def send_logs(message: Message):
+    if not is_admin(message):
+        return
+    with open('logs.log', 'rb') as f:
+        try:
+            bot.send_document(message.chat.id, document=f, caption="#LOGS")
+        except telebot.apihelper.ApiTelegramException:
+            bot.send_message(message.chat.id, 'Файл логов пуст')
+
+
+@bot.message_handler(commands=["clear_logs"])
+def clear_logs(message: Message):
+    if not is_admin(message):
+        return
+    send_logs(message)
+    with open('logs.log', 'w') as f:
+        f.write('')
+
+
 @bot.message_handler(commands=["secret"])
 def secret(message: Message):
     bot.send_message(message.chat.id, SECRET_MSG, parse_mode='MarkdownV2')
@@ -310,6 +388,15 @@ def secret(message: Message):
 @bot.message_handler()
 def ordinary_text(message: Message):
     bot.send_message(message.chat.id, choice(ORDINARY_TEXT_MSGS))
+
+
+def is_allowed_user(message: Message):
+    with open('user_whitelist.json', 'r') as f:
+        user_list = json.loads(f.read())
+        if message.from_user.username not in user_list:
+            bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG))
+            return False
+    return True
 
 
 def is_admin(message):

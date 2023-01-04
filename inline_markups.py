@@ -90,7 +90,7 @@ class CityMarkup:
 
 
 class DepartureTimeMarkup:
-    def __init__(self, parser: SiteParser, prefix: str = 'departure_time_markup'):
+    def __init__(self, parser: SiteParser, prefix: str = 'departure_time'):
         self.prefix = prefix
         self.parser = parser
         self.sep = ';'
@@ -107,7 +107,7 @@ class DepartureTimeMarkup:
 
 
 class ChangeValueMarkup:
-    def __init__(self, prefix: str = 'change_value_markup'):
+    def __init__(self, prefix: str = 'change_value'):
         self.prefix = prefix
         self.sep = ':'
 
@@ -115,6 +115,18 @@ class ChangeValueMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton('✅ Изменить', callback_data=self.sep.join([self.prefix, 'CHANGE'])))
         keyboard.add(InlineKeyboardButton('⛔️ Выйти', callback_data=self.sep.join([self.prefix, 'CANCEL'])))
+        return keyboard
+
+
+class BuyTicketMarkup:
+    def __init__(self, prefix: str = 'buy_ticket'):
+        self.prefix = prefix
+        self.sep = ':'
+
+    def create(self, city_from: str, city_to: str, departure_date: str) -> InlineKeyboardMarkup:
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton('💳 Купить на сайте',
+                                          callback_data=self.sep.join([self.prefix, city_from, city_to, departure_date])))
         return keyboard
 
 
