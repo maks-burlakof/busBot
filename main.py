@@ -42,12 +42,12 @@ class MyBot(telebot.TeleBot):
 
 telegram_client = TelegramClient(token=TOKEN, base_url="https://api.telegram.org")
 user_actioner = UserActioner(SQLiteClient("users.db"))
-parser = SiteParser()
+parser = SiteParser(user_actioner)
 bot = MyBot(token=TOKEN, telegram_client=telegram_client, user_actioner=user_actioner, parser=parser)
 
 calendar = Calendar()
 calendar_callback = CallbackData("calendar", "action", "year", "month", "day")
-city_markup = CityMarkup()
+city_markup = CityMarkup(user_actioner)
 departure_time_markup = DepartureTimeMarkup(parser=parser)
 buy_ticket_markup = BuyTicketMarkup()
 change_value_markup = ChangeValueMarkup()

@@ -56,11 +56,12 @@ class CityMarkup:
         City Inline Markup data factory
     """
 
-    def __init__(self, prefix: str = 'city_markup'):
+    def __init__(self, user_actioner, prefix: str = 'city_markup'):
         self.prefix = prefix
         self.sep = ':'
-        with open('city_data.json', 'r') as f:
-            self.CITY_DATA = json.loads(f.read())
+        user_actioner.setup()
+        self.city_data = user_actioner.get_city_data()
+        user_actioner.shutdown()
 
     def create_table(self, city_from: str = '', city_to: str = '') -> InlineKeyboardMarkup:
         """
@@ -74,7 +75,7 @@ class CityMarkup:
                                           callback_data=self.sep.join([self.prefix, 'IGNORE', city_from, city_to])),
                      InlineKeyboardButton('Прибытие:',
                                           callback_data=self.sep.join([self.prefix, 'IGNORE', city_from, city_to])))
-        for city in self.CITY_DATA:
+        for city in self.city_data:
             keyboard.add(InlineKeyboardButton(
                 city if city != city_from else city + ' 👈',
                 callback_data=self.sep.join([self.prefix, 'SET' if city != city_from and city != city_to else 'IGNORE',

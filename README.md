@@ -33,13 +33,16 @@ python3 main.py
 ### Setting values for environment variables 
 Open the ``venv/bin/activate`` file and add to the end:
 ```bash
+export PYTHONPATH=${PROJ_DIR}:${PYTHONPATH}
 export TOKEN="VALUE"
 export ADMIN_CHAT_ID="VALUE"
 ```
 where instead of ``VALUE`` insert your values.  
+The PYTHONPATH setting allows you to import from modules located in parent directories.
 
 Find the ``deactivate()`` function in this file, and add the following to the end of its code:
 ```bash
+unset PYTHONPATH
 unset TOKEN
 unset ADMIN_CHAT_ID
 ```

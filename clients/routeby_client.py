@@ -1,19 +1,15 @@
+import datetime
 from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-import datetime
 
 
 class SiteParser:
-    # TODO: брать CITY_DATA из json в корне проекта
-    CITY_DATA = {
-        "Шумилино": "c621986",
-        "Витебск": "c620127",
-        "Минск": "c625144"
-    }
-
-    def __init__(self, headless: bool = True):
+    def __init__(self, user_actioner, headless: bool = True):
+        user_actioner.setup()
+        self.city_data = user_actioner.get_city_data()
+        user_actioner.shutdown()
         self.cap = DesiredCapabilities.CHROME
         # self.cap["pageLoadStrategy"] = "eager"
         self.options = Options()
@@ -21,8 +17,8 @@ class SiteParser:
         self.options.add_experimental_option("prefs", {'profile.managed_default_content_settings.javascript': 3})
 
     def prepare_url(self, city_from: str, city_to: str, date: str):
-        key_from = self.CITY_DATA.get(city_from)
-        key_to = self.CITY_DATA.get(city_to)
+        key_from = self.city_data.get(city_from)
+        key_to = self.city_data.get(city_to)
         passengers = '1'
         return f'https://v-minsk.com/Маршруты/{city_from}/{city_to}?date={date}&passengers={passengers}&from={key_from}&to={key_to}'
 
@@ -33,12 +29,6 @@ class SiteParser:
         text = driver.find_element(By.CLASS_NAME, 'MuiGrid-grid-lg-9').text.split('\n')
         driver.quit()
         return text
-
-    # TODO: убрать?
-    def check_buses(self, city_from: str, city_to: str, date: str):
-        url = self.prepare_url(city_from, city_to, date)
-        text = self.get_page_text(url=url)
-        return False if 'Билеты не найдены' or 'Рейсов не найдено' in text else True
 
     def parse(self, city_from: str, city_to: str, date: str):
         url = self.prepare_url(city_from, city_to, date)
