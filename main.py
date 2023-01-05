@@ -13,7 +13,7 @@ from clients import *
 from actioners import UserActioner
 from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, BuyTicketMarkup, Calendar, CallbackData
 
-locale.setlocale(locale.LC_ALL, '')
+locale.setlocale(locale.LC_ALL, ('ru_RU', 'UTF-8'))
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
 logger = getLogger(__name__)
@@ -315,7 +315,7 @@ def exit_bot_confirmation(message: Message):
     if message.text.title().strip() == 'Выключение':
         bot.send_message(message.chat.id, EXIT_MSG)
         logger.critical(f'The bot was disabled at the initiative of the administrator @{message.from_user.username}')
-        exit()
+        bot.stop_bot()
     else:
         bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
@@ -411,6 +411,8 @@ while True:
     try:
         bot.setup_resources()
         bot.polling()
+    except RuntimeError:
+        exit()
     except Exception as err:
         bot.telegram_client.post(method="sendMessage",
                                  params={"text": f"#ERROR: {date.today()} ::: {err.__class__} ::: {err}",

@@ -102,7 +102,7 @@ EXTRA_ADMIN_MSG = '/announcement_text - Объявление (текстовое
                   '/send_invite_codes - Просмотреть список пригласительных кодов\n' \
                   '/exit - Выключение бота\n'
 
-DESCRIPTION_MSG = 'Текущая версия: v0.3\n' \
+DESCRIPTION_MSG = 'Текущая версия: v0.4\n' \
                   '[Смотреть README.md на GitHub](https://github.com/' \
                   'maks-burlakof/bus_bot/blob/main/README.md)'
 
