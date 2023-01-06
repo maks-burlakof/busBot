@@ -6,7 +6,10 @@ class UserActioner:
     GET_USER = 'SELECT user_id, username, chat_id, notify_date, track_data, parse_date  FROM users WHERE user_id = %s;'
     GET_ALL_USERS = 'SELECT username, chat_id, notify_date, track_data FROM users'
     GET_CITY_DATA = 'SELECT name, key FROM city_data'
+    GET_USER_WHITELIST = 'SELECT username FROM user_whitelist'
     CREATE_USER = 'INSERT INTO users (user_id, username, chat_id) VALUES (?, ?, ?);'
+    CREATE_USER_WHITELIST = 'INSERT INTO user_whitelist (username) VALUES (?);'
+    REMOVE_USER_WHITELIST = 'DELETE FROM user_whitelist WHERE username = ?;'
     UPDATE_NOTIFY_DATE = 'UPDATE users SET notify_date = ? WHERE user_id = ?;'
     UPDATE_PARSE_DATE = 'UPDATE users SET parse_date = ? WHERE user_id = ?;'
     UPDATE_TRACK_DATA = 'UPDATE users SET track_data = ? WHERE user_id = ?;'
@@ -24,9 +27,15 @@ class UserActioner:
 
     CREATE_CITY_DATA_TABLE = """
         CREATE TABLE IF NOT EXISTS city_data (
-                "name" TEXT NOT NULL,
-                "key" TEXT NOT NULL
-            );
+            "name" TEXT NOT NULL,
+            "key" TEXT NOT NULL
+        );
+    """
+
+    CREATE_USER_WHITELIST_TABLE = """
+        CREATE TABLE IF NOT EXISTS user_whitelist (
+            "username" TEXT NOT NULL
+        );
     """
 
     def __init__(self, database_client: SQLiteClient):
@@ -36,6 +45,7 @@ class UserActioner:
         self.database_client.create_conn()
         self.create_users_table()
         self.create_city_data_table()
+        self.create_user_whitelist_table()
 
     def shutdown(self):
         self.database_client.close_conn()
@@ -45,6 +55,9 @@ class UserActioner:
 
     def create_city_data_table(self):
         self.database_client.execute_command(self.CREATE_CITY_DATA_TABLE, ())
+
+    def create_user_whitelist_table(self):
+        self.database_client.execute_command(self.CREATE_USER_WHITELIST_TABLE, ())
 
     def get_user(self, user_id: int):
         user = self.database_client.execute_select_command(self.GET_USER % user_id)
@@ -57,8 +70,17 @@ class UserActioner:
         data = self.database_client.execute_select_command(self.GET_CITY_DATA)
         return {name: key for name, key in data}
 
+    def get_user_whitelist(self):
+        return self.database_client.execute_select_command(self.GET_USER_WHITELIST)
+
     def create_user(self, user_id: str, username: str, chat_id: int):
         self.database_client.execute_command(self.CREATE_USER, (user_id, username, chat_id))
+
+    def add_user_in_whitelist(self, username: str):
+        self.database_client.execute_command(self.CREATE_USER_WHITELIST, (username,))
+
+    def remove_user_from_whitelist(self, username: str):
+        self.database_client.execute_command(self.REMOVE_USER_WHITELIST, (username,))
 
     def update_notify_date(self, user_id: int, updated_date: date or None):
         if updated_date:

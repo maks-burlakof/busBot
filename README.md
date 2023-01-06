@@ -4,6 +4,8 @@ The bot will remind you in Telegram when the selected minibuses are available fo
 
 ## Features
 - user registration
+    - from the white list
+    - by invitation codes
 - processing user requests
 - logging and error processing
 
@@ -20,14 +22,23 @@ The bot will remind you in Telegram when the selected minibuses are available fo
 - sending announcements to all bot users
   - ordinary text
   - with automatic styling about the availability of selected minibuses
+- work with users
+    - see the list of registered users
+    - ban users
+- view the contents of the database
+- view the log file, clear it
+- view available invitation codes
 
 ## Installation and launch
 ```bash
 git clone https://github.com/maks-burlakof/bus_bot.git
 cd bus_bot
-pip install -r requirements.txt
+python3 -m venv venv
 # set environment variables (below)
+source venv/bin/activate
+pip install -r requirements.txt
 python3 main.py
+deactivate
 ```
 
 ### Setting values for environment variables 
@@ -58,6 +69,6 @@ sudo apt install cron
 For cron configuration use:
 ```bash
 crontab -e
-0 0 * * * python3 /home/maksim/python/marshrutka/workers/notifier_executor.py
-* * * * * python3 /home/maksim/python/marshrutka/workers/tracker_executor.py
+0 0 * * * command1
+* * * * * command2
 ```

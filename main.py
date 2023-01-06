@@ -137,7 +137,7 @@ def callback_inline_single_calendar(call: CallbackQuery):
     if action == "DAY":
         if call.message.text == NOTIFY_INPUT_MSG:
             if (date(int(year), int(month), int(day)) - date.today()).days <= 29:
-                bot.send_message(call.from_user.id, choice(NOTIFY_BUS_EXISTS))
+                bot.send_message(call.from_user.id, choice(NOTIFY_BUS_EXISTS_MSGS))
             else:
                 bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
                 bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
@@ -164,7 +164,7 @@ def callback_inline_cities(call: CallbackQuery):
             bot.user_actioner.update_track_data(user_id=call.from_user.id,
                                                 updated_data=f'{track_date} {city_from} {city_to}')
             msg = bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
-            bot.send_message(call.from_user.id, TRACK_INPUT_DEPARTURE_TIME,
+            bot.send_message(call.from_user.id, TRACK_INPUT_DEPARTURE_TIME_MSG,
                              reply_markup=departure_time_markup.create_list(city_from, city_to, track_date))
             bot.delete_message(call.from_user.id, msg.id)
         elif call.message.text == PARSE_INPUT_ROUTE_MSG:
@@ -189,7 +189,7 @@ def callback_inline_departure_time(call: CallbackQuery):
         bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
     else:
         departure_date, city_from, city_to = track_data.split(' ')
-        bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS),
+        bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS_MSGS),
                          reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
         bot.user_actioner.update_track_data(call.from_user.id, None)
 
@@ -198,13 +198,13 @@ def callback_inline_departure_time(call: CallbackQuery):
 def callback_inline_buy_ticket(call: CallbackQuery):
     name, city_from, city_to, departure_date = call.data.split(buy_ticket_markup.sep)
     url = bot.parser.prepare_url(city_from, city_to, departure_date)
-    bot.send_message(call.from_user.id, choice(URL_TO_SITE_MSG) % url, parse_mode='Markdown',
+    bot.send_message(call.from_user.id, choice(URL_TO_SITE_MSGS) % url, parse_mode='Markdown',
                      reply_markup=ReplyKeyboardRemove())
 
 
 @bot.message_handler(commands=["settings"])
 def settings(message: Message):
-    bot.send_message(message.chat.id, FEATURE_NOT_ADDED)
+    bot.send_message(message.chat.id, FEATURE_NOT_ADDED_MSGS)
 
 
 @bot.message_handler(commands=["extra"])
@@ -279,7 +279,7 @@ def announcement_text_confirmation(message: Message, ann_text: str):
 def announcement_auto(message: Message):
     if not is_admin(message):
         return
-    bot.send_message(message.chat.id, FEATURE_NOT_ADDED)
+    bot.send_message(message.chat.id, FEATURE_NOT_ADDED_MSGS)
 
 
 @bot.message_handler(commands=["users"])
@@ -289,7 +289,23 @@ def users_list(message: Message):
     users = bot.user_actioner.get_all_users()
     response = "@"
     response += "\n@".join([user[0] for user in users])
-    bot.send_message(message.chat.id, USER_LIST + response, parse_mode='HTML')
+    bot.send_message(message.chat.id, USER_LIST_MSG + response, parse_mode='HTML')
+
+
+@bot.message_handler(commands=["ban"])
+def ban_user(message: Message):
+    if not is_admin(message):
+        return
+    bot.send_message(message.chat.id, BAN_USER_MSG, parse_mode='MarkdownV2')
+    users_list(message)
+    bot.register_next_step_handler(message, ban_user_confirmation)
+
+
+def ban_user_confirmation(message: Message):
+    if 'Отменить' in message.text:
+        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
+    bot.user_actioner.remove_user_from_whitelist(message.text)
+    bot.send_message(message.chat.id, BAN_USER_CONFIRMATION_MSG)
 
 
 @bot.message_handler(commands=["database"])
@@ -300,7 +316,7 @@ def database_view(message: Message):
     response = ''
     for user in users:
         response += f'@{user[0]}\n🔹 {user[2]}\n🔸 {user[3]}\n'
-    bot.send_message(message.chat.id, DATABASE_LIST + response, parse_mode='HTML')
+    bot.send_message(message.chat.id, DATABASE_LIST_MSG + response, parse_mode='HTML')
 
 
 @bot.message_handler(commands=["exit"])
@@ -338,19 +354,16 @@ def register_confirmation(message: Message):
         codes.remove(code)
         with open('invite_codes.json', 'w') as f:
             json.dump(codes, f, indent=4)
-        f = open('user_whitelist.json', 'r')
-        users = json.loads(f.read())
-        f.close()
-        users.append(message.from_user.username)
-        with open('user_whitelist.json', 'r+') as f:
-            json.dump(users, f, indent=4)
+        bot.user_actioner.add_user_in_whitelist(message.from_user.username)
         logger.info(f"User @{message.from_user.username} used an invitation code")
+        bot.send_message(ADMIN_CHAT_ID, f'#INVITE_CODE Пользователь @{message.from_user.username} '
+                                        f'использовал пригласительный код')
         bot.send_message(message.chat.id, REGISTER_CODE_CORRECT_MSG)
         start(message)
         return True
 
 
-@bot.message_handler(commands=["send_invite_codes"])
+@bot.message_handler(commands=["invite_codes"])
 def send_invite_codes(message: Message):
     if not is_admin(message):
         return
@@ -391,11 +404,9 @@ def ordinary_text(message: Message):
 
 
 def is_allowed_user(message: Message):
-    with open('user_whitelist.json', 'r') as f:
-        user_list = json.loads(f.read())
-        if message.from_user.username not in user_list:
-            bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG))
-            return False
+    if (message.from_user.username,) not in bot.user_actioner.get_user_whitelist():
+        bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG))
+        return False
     return True
 
 
