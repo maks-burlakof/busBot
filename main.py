@@ -1,12 +1,12 @@
-import telebot
-from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
-from logging import getLogger, config
 from datetime import date
-from random import choice
+from random import choice, sample
+from string import ascii_letters, digits
 from sys import exit
 from os import environ
 import locale
-import json
+from logging import getLogger, config
+import telebot
+from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
 
 from message_texts import *
 from clients import *
@@ -63,7 +63,7 @@ def start(message: Message):
     user = bot.user_actioner.get_user(user_id)
     if not user:
         bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEG0ZJjmPVT7_NYus3XFkwVDIaW0hQ7gwACpgwAAl3b6EuwssAGdg1yFSwE')
-        bot.user_actioner.create_user(user_id=str(user_id), username=username, chat_id=chat_id)
+        bot.user_actioner.add_user(user_id=str(user_id), username=username, chat_id=chat_id)
         bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown')
         logger.info(f'User @{username} is registered')
     else:
@@ -302,7 +302,7 @@ def users_list(message: Message):
 def ban_user(message: Message):
     if not is_admin(message):
         return
-    bot.send_message(message.chat.id, BAN_USER_MSG, parse_mode='MarkdownV2')
+    bot.send_message(message.chat.id, BAN_USER_MSG)
     users_list(message)
     bot.register_next_step_handler(message, ban_user_confirmation)
 
@@ -349,33 +349,38 @@ def register(message: Message):
 
 
 def register_confirmation(message: Message):
-    f = open('invite_codes.json', 'r')
     code = message.text.strip(' ')
-    codes = json.loads(f.read())
-    f.close()
-    if code not in codes:
+    codes = bot.user_actioner.get_invite_codes()
+    if (code,) not in codes:
         bot.send_message(message.chat.id, REGISTER_CODE_INCORRECT_MSG)
-        return False
+        return
     else:
-        codes.remove(code)
-        with open('invite_codes.json', 'w') as f:
-            json.dump(codes, f, indent=4)
+        bot.user_actioner.remove_invite_code(code)
         bot.user_actioner.add_user_in_whitelist(message.from_user.username)
         logger.info(f"User @{message.from_user.username} used an invitation code")
-        bot.send_message(ADMIN_CHAT_ID, f'#INVITE_CODE Пользователь @{message.from_user.username} '
+        bot.send_message(ADMIN_CHAT_ID, f'#INFO Пользователь @{message.from_user.username} '
                                         f'использовал пригласительный код')
         bot.send_message(message.chat.id, REGISTER_CODE_CORRECT_MSG)
         start(message)
-        return True
 
 
 @bot.message_handler(commands=["invite_codes"])
 def send_invite_codes(message: Message):
     if not is_admin(message):
         return
-    with open('invite_codes.json', 'r') as f:
-        msg = "\n".join(f"`{line}`" for line in json.loads(f.read()))
+    codes = bot.user_actioner.get_invite_codes()
+    msg = "\n".join(f"`{code[0]}`" for code in codes)
     bot.send_message(message.chat.id, msg, parse_mode='MarkdownV2')
+
+
+@bot.message_handler(commands=["invite_codes_create"])
+def create_invite_codes(message: Message):
+    if not is_admin(message):
+        return
+    symbols = ascii_letters + digits
+    for _ in range(5):
+        bot.user_actioner.add_invite_code(''.join(sample(symbols, k=20)))
+    bot.send_message(message.chat.id, INVITE_CODES_CREATED_MSG)
 
 
 @bot.message_handler(commands=["logs"])

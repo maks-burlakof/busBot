@@ -7,9 +7,12 @@ class UserActioner:
     GET_ALL_USERS = 'SELECT username, chat_id, notify_date, track_data FROM users'
     GET_CITY_DATA = 'SELECT name, key FROM city_data'
     GET_USER_WHITELIST = 'SELECT username FROM user_whitelist'
-    CREATE_USER = 'INSERT INTO users (user_id, username, chat_id) VALUES (?, ?, ?);'
-    CREATE_USER_WHITELIST = 'INSERT INTO user_whitelist (username) VALUES (?);'
+    GET_INVITE_CODES = 'SELECT code FROM invite_codes'
+    ADD_USER = 'INSERT INTO users (user_id, username, chat_id) VALUES (?, ?, ?);'
+    ADD_USER_IN_WHITELIST = 'INSERT INTO user_whitelist (username) VALUES (?);'
+    ADD_INVITE_CODE = 'INSERT INTO invite_codes (code) VALUES (?);'
     REMOVE_USER_WHITELIST = 'DELETE FROM user_whitelist WHERE username = ?;'
+    REMOVE_INVITE_CODE = 'DELETE FROM invite_codes WHERE code = ?;'
     UPDATE_NOTIFY_DATE = 'UPDATE users SET notify_date = ? WHERE user_id = ?;'
     UPDATE_PARSE_DATE = 'UPDATE users SET parse_date = ? WHERE user_id = ?;'
     UPDATE_TRACK_DATA = 'UPDATE users SET track_data = ? WHERE user_id = ?;'
@@ -24,17 +27,20 @@ class UserActioner:
             "parse_date" DATE
         );
     """
-
     CREATE_CITY_DATA_TABLE = """
         CREATE TABLE IF NOT EXISTS city_data (
             "name" TEXT NOT NULL,
             "key" TEXT NOT NULL
         );
     """
-
     CREATE_USER_WHITELIST_TABLE = """
         CREATE TABLE IF NOT EXISTS user_whitelist (
             "username" TEXT NOT NULL
+        );
+    """
+    CREATE_INVITE_CODES_TABLE = """
+        CREATE TABLE IF NOT EXISTS invite_codes (
+            "code" TEXT NOT NULL
         );
     """
 
@@ -43,21 +49,16 @@ class UserActioner:
 
     def setup(self):
         self.database_client.create_conn()
-        self.create_users_table()
-        self.create_city_data_table()
-        self.create_user_whitelist_table()
+        self.create_tables()
 
     def shutdown(self):
         self.database_client.close_conn()
 
-    def create_users_table(self):
+    def create_tables(self):
         self.database_client.execute_command(self.CREATE_USERS_TABLE, ())
-
-    def create_city_data_table(self):
         self.database_client.execute_command(self.CREATE_CITY_DATA_TABLE, ())
-
-    def create_user_whitelist_table(self):
         self.database_client.execute_command(self.CREATE_USER_WHITELIST_TABLE, ())
+        self.database_client.execute_command(self.CREATE_INVITE_CODES_TABLE, ())
 
     def get_user(self, user_id: int):
         user = self.database_client.execute_select_command(self.GET_USER % user_id)
@@ -73,14 +74,23 @@ class UserActioner:
     def get_user_whitelist(self):
         return self.database_client.execute_select_command(self.GET_USER_WHITELIST)
 
-    def create_user(self, user_id: str, username: str, chat_id: int):
-        self.database_client.execute_command(self.CREATE_USER, (user_id, username, chat_id))
+    def get_invite_codes(self):
+        return self.database_client.execute_select_command(self.GET_INVITE_CODES)
+
+    def add_user(self, user_id: str, username: str, chat_id: int):
+        self.database_client.execute_command(self.ADD_USER, (user_id, username, chat_id))
 
     def add_user_in_whitelist(self, username: str):
-        self.database_client.execute_command(self.CREATE_USER_WHITELIST, (username,))
+        self.database_client.execute_command(self.ADD_USER_IN_WHITELIST, (username,))
+
+    def add_invite_code(self, code: str):
+        self.database_client.execute_command(self.ADD_INVITE_CODE, (code,))
 
     def remove_user_from_whitelist(self, username: str):
         self.database_client.execute_command(self.REMOVE_USER_WHITELIST, (username,))
+
+    def remove_invite_code(self, code: str):
+        self.database_client.execute_command(self.REMOVE_INVITE_CODE, (code,))
 
     def update_notify_date(self, user_id: int, updated_date: date or None):
         if updated_date:
