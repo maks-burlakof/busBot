@@ -78,7 +78,7 @@ class Reminder:
         if not self.setted_up:
             logger.error("Resources in worker.reminder has not been set up!")
             return
-        logger.info('The execute_notify function is called')
+        logger.debug('The execute_notify function is called')
         start_time = time()
         notify_ids = self.database_client.execute_select_command(self.GET_NOTIFY_DATE)
         if notify_ids:
@@ -90,7 +90,7 @@ class Reminder:
         if not self.setted_up:
             logger.error("Resources in worker.reminder has not been set up!")
             return
-        logger.info('The execute_track function is called')
+        logger.debug('The execute_track function is called')
         start_time = time()
         track_ids = self.database_client.execute_select_command(self.GET_TRACK_DATA)
         if track_ids:

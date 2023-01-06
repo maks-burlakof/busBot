@@ -172,7 +172,13 @@ def callback_inline_cities(call: CallbackQuery):
             departure_date = bot.user_actioner.get_user(call.from_user.id)[5]
             response = bot.parser.parse(city_from, city_to, departure_date)
             if response:
-                bot.edit_message_text(PARSE_RESPONSE_HEADER_MSG % (city_from, city_to, departure_date) + str(response),
+                stylized = ""
+                for bus in response:
+                    stylized += f"{bus}. \n 🕓 {response[bus]['departure_time']} 👉🏻 {response[bus]['arrival_time']} \n" \
+                               f" 🆓 {response[bus]['free_places_info']} \n" + \
+                                (f" 💵 {response[bus]['cost']} \n" if 'Нет мест'
+                                                                     not in response[bus]['free_places_info'] else '')
+                bot.edit_message_text(PARSE_RESPONSE_HEADER_MSG % (city_from, city_to, departure_date) + stylized,
                                       call.message.chat.id, msg.id, parse_mode='Markdown',
                                       reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
             else:

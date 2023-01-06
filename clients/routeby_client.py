@@ -27,12 +27,13 @@ class SiteParser:
         for route in routes:
             times = route.findAll('div', 'MuiGrid-grid-md-3')
             availability = route.find('div', 'MuiGrid-grid-md-auto').text
+            free_phrase = 'Свободно' if 'Свободно' in availability else 'Последнее'
             response.update({
                 counter: {
                     'departure_time': times[0].text[:5],
                     'arrival_time': times[1].text[:5],
                     'cost': (availability[:availability.find('Br')] + 'Br') if availability else None,
-                    'free_places_info': availability[availability.find('Свободно'):] if availability else 'Нет мест'
+                    'free_places_info': availability[availability.find(free_phrase):] if availability else 'Нет мест'
                 }})
             counter += 1
         return response
