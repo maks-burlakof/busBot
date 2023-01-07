@@ -3,6 +3,7 @@ from datetime import date, timedelta, datetime
 from os import environ
 from sys import path
 from time import time
+import locale
 
 from message_texts import *
 from clients import *
@@ -11,6 +12,8 @@ from inline_markups import BuyTicketMarkup
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
 logger = getLogger(__name__)
+
+locale.setlocale(locale.LC_ALL, ('ru_RU', 'UTF-8'))
 
 TOKEN = environ.get("TOKEN")
 
@@ -50,8 +53,9 @@ class Reminder:
     def notify(self, notify_ids: list):
         for chat_id, user_id in notify_ids:
             res = self.telegram_client.post(method="sendMessage", params={
-                "text": NOTIFY_MSG % str(date.today() + timedelta(days=TIME_DELTA)),
-                "chat_id": chat_id})
+                "text": NOTIFY_MSG % str((date.today() + timedelta(days=TIME_DELTA)).strftime('%d %B %Yг. (%a)')),
+                "chat_id": chat_id,
+                "parse_mode": 'Markdown'})
             self.user_actioner.update_notify_date(user_id=user_id, updated_date=None)
             logger.debug(res)
 
@@ -62,12 +66,13 @@ class Reminder:
             except ValueError:
                 self.user_actioner.update_track_data(user_id, None)
                 continue
-            if datetime.strptime(f'{track_date} {departure_time}', '%Y-%m-%d %H:%M') < datetime.today():
+            track_date_time = datetime.strptime(f'{track_date} {departure_time}', '%Y-%m-%d %H:%M')
+            if track_date_time < datetime.today():
                 self.user_actioner.update_track_data(user_id, None)
                 continue
             if self.parser.get_free_seats(city_from, city_to, track_date, departure_time):
                 res = self.telegram_client.post(method="sendMessage", params={
-                    "text": TRACK_MSG % (track_date, city_from, city_to, departure_time),
+                    "text": TRACK_MSG % (track_date_time.strftime('%d %B %Yг. (%a)'), city_from, city_to, departure_time),
                     "chat_id": chat_id,
                     "parse_mode": 'Markdown',
                     "reply_markup": self.buy_ticket_markup.create(city_from, city_to, track_date).to_json()})

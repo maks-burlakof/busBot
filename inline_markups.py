@@ -115,7 +115,8 @@ class ChangeValueMarkup:
     def create(self) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton('✅ Изменить', callback_data=self.sep.join([self.prefix, 'CHANGE'])))
-        keyboard.add(InlineKeyboardButton('⛔️ Выйти', callback_data=self.sep.join([self.prefix, 'CANCEL'])))
+        keyboard.add(InlineKeyboardButton('❌ Отменить', callback_data=self.sep.join([self.prefix, 'RESET'])))
+        keyboard.add(InlineKeyboardButton('↪️ Назад', callback_data=self.sep.join([self.prefix, 'CANCEL'])))
         return keyboard
 
 

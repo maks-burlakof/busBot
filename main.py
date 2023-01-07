@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from random import choice, sample
 from string import ascii_letters, digits
 from sys import exit
@@ -126,6 +126,13 @@ def callback_inline_change_value(call: CallbackQuery):
         elif call.message.text[:call.message.text.find('\n')] == TRACK_EXISTS_MSG[:TRACK_EXISTS_MSG.find('\n')]:
             bot.send_message(call.message.chat.id, TRACK_INPUT_DATE_MSG,
                              reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
+    elif action == 'RESET':
+        if call.message.text[:call.message.text.find('\n')] == NOTIFY_EXISTS_MSG[:NOTIFY_EXISTS_MSG.find('\n')]:
+            bot.user_actioner.update_notify_date(call.from_user.id, None)
+            bot.send_message(call.from_user.id, choice(NOTIFY_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove())
+        elif call.message.text[:call.message.text.find('\n')] == TRACK_EXISTS_MSG[:TRACK_EXISTS_MSG.find('\n')]:
+            bot.user_actioner.update_track_data(call.from_user.id, None)
+            bot.send_message(call.from_user.id, choice(TRACK_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove())
     elif action == 'CANCEL':
         bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
 
@@ -141,6 +148,7 @@ def callback_inline_single_calendar(call: CallbackQuery):
             else:
                 bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
                 bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+                logger.info(f"User {call.from_user.username} set new notify date: {chosen_date}")
         elif call.message.text == TRACK_INPUT_DATE_MSG:
             bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=str(chosen_date))
             bot.send_message(call.from_user.id, TRACK_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
@@ -174,13 +182,16 @@ def callback_inline_cities(call: CallbackQuery):
             if response:
                 stylized = ""
                 for bus in response:
-                    stylized += f"{bus}. \n 🕓 {response[bus]['departure_time']} 👉🏻 {response[bus]['arrival_time']} \n" \
-                               f" 🆓 {response[bus]['free_places_info']} \n" + \
-                                (f" 💵 {response[bus]['cost']} \n" if 'Нет мест'
-                                                                     not in response[bus]['free_places_info'] else '')
-                bot.edit_message_text(PARSE_RESPONSE_HEADER_MSG % (city_from, city_to, departure_date) + stylized,
-                                      call.message.chat.id, msg.id, parse_mode='Markdown',
-                                      reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
+                    free_places_info = response[bus]['free_places_info']
+                    stylized += f"🕓 {response[bus]['departure_time']} 👉🏻 {response[bus]['arrival_time']} \n" +\
+                                ("⛔️ " if 'Нет мест' in free_places_info else "✅ ") + f"{free_places_info} \n" +\
+                                (f"💵 {response[bus]['cost']} \n\n" if 'Нет мест' not in free_places_info else '\n')
+                bot.edit_message_text(
+                    PARSE_RESPONSE_HEADER_MSG %
+                    (city_from, city_to, datetime.strptime(f'{departure_date}', '%Y-%m-%d').strftime('%d %B %Yг. (%a)'))
+                    + '\n' + stylized, call.message.chat.id, msg.id, parse_mode='Markdown',
+                    reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
+                logger.info(f"User {call.from_user.username} parsed: {departure_date} {city_from} - {city_to}")
             else:
                 bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, msg.id)
 
@@ -193,6 +204,7 @@ def callback_inline_departure_time(call: CallbackQuery):
     if 'Нет мест' in free_places:
         bot.user_actioner.update_track_data(call.from_user.id, f'{track_data} {departure_time}')
         bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+        logger.info(f"User {call.from_user.username} set new track data: {track_data} {departure_time}")
     else:
         departure_date, city_from, city_to = track_data.split(' ')
         bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS_MSGS),
@@ -252,7 +264,7 @@ def feedback_confirmation(message: Message, feedback_text: str):
     if message.text.title().strip() == "Отправить":
         bot.send_message(ADMIN_CHAT_ID, '#INFO:' + FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, feedback_text))
         bot.reply_to(message, FEEDBACK_SUBMIT_MSG)
-        logger.info(f'User @{message.from_user.username} sent feedback: {message.text}')
+        logger.info(f'User @{message.from_user.username} sent feedback: {feedback_text}')
     else:
         bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
@@ -321,7 +333,12 @@ def database_view(message: Message):
     users = bot.user_actioner.get_all_users()
     response = ''
     for user in users:
-        response += f'@{user[0]}\n🔹 {user[2]}\n🔸 {user[3]}\n'
+        if user[2]:
+            response += f'@{user[0]}\n1️⃣ {user[2]}\n'
+            if user[3]:
+                response += f'2️⃣ {user[3]}\n'
+        elif user[3]:
+            response += f'@{user[0]}\n2️⃣ {user[3]}\n'
     bot.send_message(message.chat.id, DATABASE_LIST_MSG + response, parse_mode='HTML')
 
 
