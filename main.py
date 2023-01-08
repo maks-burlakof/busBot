@@ -4,8 +4,6 @@ from string import ascii_letters, digits
 from sys import exit
 from os import environ
 import locale
-import schedule
-from threading import Thread
 from logging import getLogger, config
 import telebot
 from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
@@ -13,7 +11,6 @@ from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
 from message_texts import *
 from clients import *
 from actioners import UserActioner
-from reminder import Reminder
 from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, BuyTicketMarkup, Calendar, CallbackData
 
 locale.setlocale(locale.LC_ALL, ('ru_RU', 'UTF-8'))
@@ -44,8 +41,7 @@ class MyBot(telebot.TeleBot):
 
 
 telegram_client = TelegramClient(token=TOKEN, base_url="https://api.telegram.org")
-database_client = SQLiteClient("users.db")
-user_actioner = UserActioner(database_client)
+user_actioner = UserActioner(SQLiteClient("users.db"))
 parser = SiteParser(user_actioner)
 bot = MyBot(token=TOKEN, telegram_client=telegram_client, user_actioner=user_actioner, parser=parser)
 
@@ -55,25 +51,6 @@ city_markup = CityMarkup(user_actioner)
 departure_time_markup = DepartureTimeMarkup(parser=parser)
 buy_ticket_markup = BuyTicketMarkup()
 change_value_markup = ChangeValueMarkup()
-
-reminder = Reminder(telegram_client, database_client, user_actioner, parser, buy_ticket_markup)
-
-
-def executors():
-    @schedule.repeat(schedule.every().day.at('00:00'))
-    def notifier_executor():
-        reminder.execute_notify()
-
-    @schedule.repeat(schedule.every(1).minutes)
-    def tracker_executor():
-        reminder.execute_track()
-
-    while True:
-        schedule.run_pending()
-
-
-thr = Thread(target=executors, name='thr-executors')
-thr.start()
 
 
 @bot.message_handler(commands=['start'])
