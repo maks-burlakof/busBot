@@ -1,7 +1,6 @@
 from logging import getLogger, config
 from datetime import date, timedelta, datetime
 from os import environ
-from sys import path
 from time import time
 import locale
 
@@ -30,20 +29,13 @@ class Reminder:
 
     GET_TRACK_DATA = 'SELECT chat_id, user_id, track_data FROM users WHERE track_data NOT NULL;'
 
-    def __init__(self):
-        self.telegram_client = TelegramClient(token=TOKEN, base_url="https://api.telegram.org")
-        self.database_client = SQLiteClient(path[0] + '/../users.db')
-        self.user_actioner = UserActioner(database_client=self.database_client)
-        self.parser = SiteParser(user_actioner=self.user_actioner)
-        self.buy_ticket_markup = BuyTicketMarkup()
-        self.setted_up = False
-
-    def setup(self):
-        self.database_client.create_conn()
-        self.setted_up = True
-
-    def shutdown(self):
-        self.database_client.close_conn()
+    def __init__(self, telegram_client: TelegramClient, database_client: SQLiteClient, user_actioner: UserActioner,
+                 parser: SiteParser, buy_ticket_markup: BuyTicketMarkup):
+        self.telegram_client = telegram_client
+        self.database_client = database_client
+        self.user_actioner = user_actioner
+        self.parser = parser
+        self.buy_ticket_markup = buy_ticket_markup
 
     @staticmethod
     def check_working_time(start_time: float, end_time: float):
@@ -80,10 +72,7 @@ class Reminder:
                 logger.debug(res)
 
     def execute_notify(self):
-        if not self.setted_up:
-            logger.error("Resources in worker.reminder has not been set up!")
-            return
-        logger.debug('The execute_notify function is called')
+        # logger.debug('The execute_notify function is called')
         start_time = time()
         notify_ids = self.database_client.execute_select_command(self.GET_NOTIFY_DATE)
         if notify_ids:
@@ -92,10 +81,7 @@ class Reminder:
         self.check_working_time(start_time, end_time)
 
     def execute_track(self):
-        if not self.setted_up:
-            logger.error("Resources in worker.reminder has not been set up!")
-            return
-        logger.debug('The execute_track function is called')
+        # logger.debug('The execute_track function is called')
         start_time = time()
         track_ids = self.database_client.execute_select_command(self.GET_TRACK_DATA)
         if track_ids:
