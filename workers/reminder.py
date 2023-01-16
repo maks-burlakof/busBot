@@ -24,11 +24,15 @@ TIME_DELTA = 29
 MAX_NOTIFY_TIME = 60
 MAX_TRACK_TIME = 40
 
+# site parse frequency, min
+FREQ_1ST = 5
+FREQ_2ND = 10
+
 
 class Reminder:
-    GET_NOTIFY_DATE = f'SELECT chat_id, user_id FROM users WHERE (julianday(notify_date) - julianday() < {TIME_DELTA});'
+    GET_NOTIFY_DATE = f'SELECT chat_id, user_id FROM users WHERE (julianday(notify_date) - julianday() < {TIME_DELTA - 1});'
 
-    GET_TRACK_DATA = 'SELECT chat_id, user_id, track_data FROM users WHERE track_data NOT NULL;'
+    GET_TRACK_DATA = 'SELECT chat_id, user_id, track_data, track_time_passed FROM users WHERE track_data NOT NULL;'
 
     def __init__(self):
         self.telegram_client = TelegramClient(token=TOKEN, base_url="https://api.telegram.org")
@@ -57,19 +61,36 @@ class Reminder:
                 "chat_id": chat_id,
                 "parse_mode": 'Markdown'})
             self.user_actioner.update_notify_date(user_id=user_id, updated_date=None)
-            logger.debug(res)
+            logger.info(res)
 
     def track(self, track_ids: list):
-        for chat_id, user_id, track_data in track_ids:
+        for chat_id, user_id, track_data, track_time_passed in track_ids:
             try:
                 track_date, city_from, city_to, departure_time = track_data.split()
             except ValueError:
                 self.user_actioner.update_track_data(user_id, None)
                 continue
             track_date_time = datetime.strptime(f'{track_date} {departure_time}', '%Y-%m-%d %H:%M')
+            track_delta = (track_date_time - datetime.today()).days
             if track_date_time < datetime.today():
                 self.user_actioner.update_track_data(user_id, None)
                 continue
+            if track_delta > 1:
+                if not track_time_passed:
+                    self.user_actioner.update_track_time_passed(user_id, 1)
+                    continue
+                track_freq = FREQ_1ST
+                if track_delta <= 7:
+                    track_freq = FREQ_1ST
+                elif track_delta > 7:
+                    track_freq = FREQ_2ND
+
+                if track_time_passed < track_freq:
+                    self.user_actioner.update_track_time_passed(user_id, -1)
+                    continue
+                else:
+                    self.user_actioner.update_track_time_passed(user_id, None)
+
             if self.parser.get_free_seats(city_from, city_to, track_date, departure_time):
                 res = self.telegram_client.post(method="sendMessage", params={
                     "text": TRACK_MSG % (track_date_time.strftime('%d %B %Yг. (%a)'), city_from, city_to, departure_time),
@@ -77,7 +98,7 @@ class Reminder:
                     "parse_mode": 'Markdown',
                     "reply_markup": self.buy_ticket_markup.create(city_from, city_to, track_date).to_json()})
                 self.user_actioner.update_track_data(user_id=user_id, updated_data=None)
-                logger.debug(res)
+                logger.info(res)
 
     def execute_notify(self):
         if not self.setted_up:

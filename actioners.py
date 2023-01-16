@@ -3,7 +3,7 @@ from clients import SQLiteClient
 
 
 class UserActioner:
-    GET_USER = 'SELECT user_id, username, chat_id, notify_date, track_data, parse_date  FROM users WHERE user_id = %s;'
+    GET_USER = 'SELECT user_id, username, chat_id, notify_date, track_data, parse_date FROM users WHERE user_id = %s;'
     GET_ALL_USERS = 'SELECT username, chat_id, notify_date, track_data FROM users'
     GET_CITY_DATA = 'SELECT name, key FROM city_data'
     GET_USER_WHITELIST = 'SELECT username FROM user_whitelist'
@@ -16,15 +16,18 @@ class UserActioner:
     UPDATE_NOTIFY_DATE = 'UPDATE users SET notify_date = ? WHERE user_id = ?;'
     UPDATE_PARSE_DATE = 'UPDATE users SET parse_date = ? WHERE user_id = ?;'
     UPDATE_TRACK_DATA = 'UPDATE users SET track_data = ? WHERE user_id = ?;'
+    UPDATE_TRACK_TIME_PASSED = 'UPDATE users SET track_time_passed = ? WHERE user_id = ?;'
+    UPDATE_SUM_TRACK_TIME_PASSED = 'UPDATE users SET track_time_passed = track_time_passed + ? WHERE user_id = ?;'
 
     CREATE_USERS_TABLE = """
         CREATE TABLE IF NOT EXISTS users (
             "user_id" INTEGER PRIMARY KEY NOT NULL UNIQUE,
-            "username" TEXT NOT NULL,
+            "username" TEXT,
             "chat_id" INTEGER NOT NULL,
             "notify_date" DATE,
             "track_data" TEXT,
-            "parse_date" DATE
+            "parse_date" DATE,
+            "track_time_passed" INTEGER
         );
     """
     CREATE_CITY_DATA_TABLE = """
@@ -103,6 +106,14 @@ class UserActioner:
             self.database_client.execute_command(self.UPDATE_TRACK_DATA, (updated_data, user_id))
         else:
             self.database_client.execute_command(self.UPDATE_TRACK_DATA, (None, user_id))
+
+    def update_track_time_passed(self, user_id: int, updated_delta: int or None):
+        if updated_delta == -1:
+            self.database_client.execute_command(self.UPDATE_SUM_TRACK_TIME_PASSED, (1, user_id))
+        elif not updated_delta:
+            self.database_client.execute_command(self.UPDATE_TRACK_TIME_PASSED, (None, user_id))
+        else:
+            self.database_client.execute_command(self.UPDATE_TRACK_TIME_PASSED, (updated_delta, user_id))
 
     def update_parse_date(self, user_id: int, updated_date: date or None):
         if updated_date:
