@@ -151,10 +151,16 @@ def callback_inline_single_calendar(call: CallbackQuery):
                 logger.info(f"User {call.from_user.username} set new notify date: {chosen_date}")
         elif call.message.text == TRACK_INPUT_DATE_MSG:
             bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=str(chosen_date))
-            bot.send_message(call.from_user.id, TRACK_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
+            bot.send_message(call.from_user.id,
+                             f'<b>{TRACK_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
+                             parse_mode='HTML',
+                             reply_markup=city_markup.create_table())
         elif call.message.text == PARSE_INPUT_MSG:
             bot.user_actioner.update_parse_date(user_id=call.from_user.id, updated_date=chosen_date)
-            bot.send_message(call.from_user.id, PARSE_INPUT_ROUTE_MSG, reply_markup=city_markup.create_table())
+            bot.send_message(call.from_user.id,
+                             f'<b>{PARSE_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
+                             parse_mode='HTML',
+                             reply_markup=city_markup.create_table())
     elif action == "CANCEL":
         bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
 
@@ -167,15 +173,19 @@ def callback_inline_cities(call: CallbackQuery):
                                       reply_markup=city_markup.create_table(city_from=city_from, city_to=city_to))
     elif action == 'SUBMIT':
         bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
-        if call.message.text == TRACK_INPUT_ROUTE_MSG:
+        if call.message.text.split('\n')[0] == TRACK_INPUT_ROUTE_MSG:
             track_date = bot.user_actioner.get_user(call.from_user.id)[4]
             bot.user_actioner.update_track_data(user_id=call.from_user.id,
                                                 updated_data=f'{track_date} {city_from} {city_to}')
+            d, m, y = [int(i) for i in track_date.split('-')]
             msg = bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
-            bot.send_message(call.from_user.id, TRACK_INPUT_DEPARTURE_TIME_MSG,
+            bot.send_message(call.from_user.id, f'<b>{TRACK_INPUT_DEPARTURE_TIME_MSG}</b>' +
+                             SELECTED_DATE_MSG % date(d, m, y).strftime('%d %B %Yг. (%a)') +
+                             SELECTED_ROUTE_MSG % (city_from, city_to),
+                             parse_mode='HTML',
                              reply_markup=departure_time_markup.create_list(city_from, city_to, track_date))
             bot.delete_message(call.from_user.id, msg.id)
-        elif call.message.text == PARSE_INPUT_ROUTE_MSG:
+        elif call.message.text.split('\n')[0] == PARSE_INPUT_ROUTE_MSG:
             msg = bot.send_message(call.from_user.id, choice(LOADING_MSGS))
             departure_date = bot.user_actioner.get_user(call.from_user.id)[5]
             response = bot.parser.parse(city_from, city_to, departure_date)

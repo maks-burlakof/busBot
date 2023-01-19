@@ -127,7 +127,7 @@ class BuyTicketMarkup:
 
     def create(self, city_from: str, city_to: str, departure_date: str) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('💳 Купить на сайте',
+        keyboard.add(InlineKeyboardButton('💳 Заказать на сайте',
                                           callback_data=self.sep.join([self.prefix, city_from, city_to, departure_date])))
         return keyboard
 
@@ -186,7 +186,7 @@ class Calendar:
                     row.append(InlineKeyboardButton(" ",
                                                     callback_data=data_ignore))
                 elif f"{now_day.day}.{now_day.month}.{now_day.year}" == f"{day}.{month}.{year}":
-                    row.append(InlineKeyboardButton(f"({day})",
+                    row.append(InlineKeyboardButton(f"{day}",
                                                     callback_data=calendar_callback.new("DAY", year, month, day)))
                 elif datetime.datetime(year, month, day) < now_day:
                     row.append(InlineKeyboardButton(" ",

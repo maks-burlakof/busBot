@@ -30,7 +30,7 @@ FREQ_2ND = 10
 
 
 class Reminder:
-    GET_NOTIFY_DATE = f'SELECT chat_id, user_id FROM users WHERE (julianday(notify_date) - julianday() < {TIME_DELTA - 1});'
+    GET_NOTIFY_DATE = f'SELECT chat_id, user_id FROM users WHERE (julianday(notify_date) - julianday() < {TIME_DELTA + 1});'
 
     GET_TRACK_DATA = 'SELECT chat_id, user_id, track_data, track_time_passed FROM users WHERE track_data NOT NULL;'
 
@@ -51,8 +51,9 @@ class Reminder:
 
     @staticmethod
     def check_working_time(start_time: float, end_time: float):
-        if end_time - start_time > MAX_TRACK_TIME:
-            logger.error('Script time limit exceeded!')
+        execution_time = end_time - start_time
+        if execution_time > MAX_TRACK_TIME:
+            logger.error(f'Script time limit exceeded: {round(execution_time, 1)}')
 
     def notify(self, notify_ids: list):
         for chat_id, user_id in notify_ids:
