@@ -101,13 +101,13 @@ def track(message: Message):
     track_data = bot.user_actioner.get_user(message.from_user.id)[4]
     if track_data:
         track_data = track_data.split(' ')
-        y, m, d = [int(i) for i in track_data[0].split('-')]
-        track_date = date(y, m, d)
         try:
+            y, m, d = [int(i) for i in track_data[0].split('-')]
+            track_date = date(y, m, d)
             bot.send_message(message.chat.id, TRACK_EXISTS_MSG % (track_date.strftime('%d %B %Yг. (%a)'),
                                                                   track_data[1], track_data[2], track_data[3]),
                              reply_markup=change_value_markup.create())
-        except IndexError:
+        except (IndexError, ValueError):
             bot.user_actioner.update_track_data(message.from_user.id, None)
             track(message)
     else:
@@ -200,7 +200,7 @@ def callback_inline_cities(call: CallbackQuery):
                     PARSE_RESPONSE_HEADER_MSG %
                     (city_from, city_to, datetime.strptime(f'{departure_date}', '%Y-%m-%d').strftime('%d %B %Yг. (%a)'))
                     + '\n' + stylized, call.message.chat.id, msg.id, parse_mode='Markdown',
-                    reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
+                    reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date, parser))
                 logger.info(f"User {call.from_user.username} parsed: {departure_date} {city_from} - {city_to}")
             else:
                 bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, msg.id)
@@ -211,23 +211,22 @@ def callback_inline_departure_time(call: CallbackQuery):
     name, departure_time, free_places = call.data.split(departure_time_markup.sep)
     track_data = bot.user_actioner.get_user(call.from_user.id)[4]
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
+    try:
+        departure_date, city_from, city_to = track_data.split(' ')
+        y, m, d = [int(i) for i in departure_date.split('-')]
+    except (IndexError, ValueError, AttributeError):
+        return
     if 'Нет мест' in free_places:
         bot.user_actioner.update_track_data(call.from_user.id, f'{track_data} {departure_time}')
         bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+        message = call.message
+        message.from_user = call.from_user
+        track(message)
         logger.info(f"User {call.from_user.username} set new track data: {track_data} {departure_time}")
     else:
-        departure_date, city_from, city_to = track_data.split(' ')
         bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS_MSGS),
-                         reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date))
+                         reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date, parser))
         bot.user_actioner.update_track_data(call.from_user.id, None)
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith(buy_ticket_markup.prefix))
-def callback_inline_buy_ticket(call: CallbackQuery):
-    name, city_from, city_to, departure_date = call.data.split(buy_ticket_markup.sep)
-    url = bot.parser.prepare_url(city_from, city_to, departure_date)
-    bot.send_message(call.from_user.id, choice(URL_TO_SITE_MSGS) % url, parse_mode='Markdown',
-                     reply_markup=ReplyKeyboardRemove())
 
 
 @bot.message_handler(commands=["settings"])

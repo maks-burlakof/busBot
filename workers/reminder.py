@@ -31,7 +31,6 @@ FREQ_2ND = 10
 
 class Reminder:
     GET_NOTIFY_DATE = f'SELECT chat_id, user_id FROM users WHERE (julianday(notify_date) - julianday() < {TIME_DELTA + 1});'
-
     GET_TRACK_DATA = 'SELECT chat_id, user_id, track_data, track_time_passed FROM users WHERE track_data NOT NULL;'
 
     def __init__(self):
@@ -68,8 +67,8 @@ class Reminder:
         for chat_id, user_id, track_data, track_time_passed in track_ids:
             try:
                 track_date, city_from, city_to, departure_time = track_data.split()
-            except ValueError:
-                self.user_actioner.update_track_data(user_id, None)
+            except (ValueError, AttributeError):
+                # self.user_actioner.update_track_data(user_id, None)
                 continue
             track_date_time = datetime.strptime(f'{track_date} {departure_time}', '%Y-%m-%d %H:%M')
             track_delta = (track_date_time - datetime.today()).days
@@ -97,7 +96,7 @@ class Reminder:
                     "text": TRACK_MSG % (track_date_time.strftime('%d %B %Yг. (%a)'), city_from, city_to, departure_time),
                     "chat_id": chat_id,
                     "parse_mode": 'Markdown',
-                    "reply_markup": self.buy_ticket_markup.create(city_from, city_to, track_date).to_json()})
+                    "reply_markup": self.buy_ticket_markup.create(city_from, city_to, track_date, self.parser).to_json()})
                 self.user_actioner.update_track_data(user_id=user_id, updated_data=None)
                 logger.info(res)
 
@@ -105,7 +104,7 @@ class Reminder:
         if not self.setted_up:
             logger.error("Resources in worker.reminder has not been set up!")
             return
-        logger.debug('The execute_notify function is called')
+        # logger.debug('The execute_notify function is called')
         start_time = time()
         notify_ids = self.database_client.execute_select_command(self.GET_NOTIFY_DATE)
         if notify_ids:
@@ -117,7 +116,7 @@ class Reminder:
         if not self.setted_up:
             logger.error("Resources in worker.reminder has not been set up!")
             return
-        logger.debug('The execute_track function is called')
+        # logger.debug('The execute_track function is called')
         start_time = time()
         track_ids = self.database_client.execute_select_command(self.GET_TRACK_DATA)
         if track_ids:

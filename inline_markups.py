@@ -35,18 +35,18 @@ ENGLISH_LANGUAGE = Language(
 RUSSIAN_LANGUAGE = Language(
     days=("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"),
     months=(
-        "Январь",
-        "Февраль",
-        "Март",
-        "Апрель",
-        "Май",
-        "Июнь",
-        "Июль",
-        "Август",
-        "Сентябрь",
-        "Октябрь",
-        "Ноябрь",
-        "Декабрь",
+        "Январь ❄️",
+        "Февраль 🌨",
+        "Март 🌤",
+        "Апрель ☀️",
+        "Май 🏖",
+        "Июнь 🌴",
+        "Июль 🌞",
+        "Август ⛱",
+        "Сентябрь 🍁",
+        "Октябрь 🍃",
+        "Ноябрь 🌧",
+        "Декабрь 🎄",
     ),
 )
 
@@ -125,10 +125,10 @@ class BuyTicketMarkup:
         self.prefix = prefix
         self.sep = ':'
 
-    def create(self, city_from: str, city_to: str, departure_date: str) -> InlineKeyboardMarkup:
+    def create(self, city_from: str, city_to: str, departure_date: str, parser: SiteParser) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton('💳 Заказать на сайте',
-                                          callback_data=self.sep.join([self.prefix, city_from, city_to, departure_date])))
+                                          url=parser.prepare_url(city_from, city_to, departure_date)))
         return keyboard
 
 
