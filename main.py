@@ -8,6 +8,7 @@ from logging import getLogger, config
 import telebot
 from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
 
+from workers.reminder import TIME_DELTA
 from message_texts import *
 from clients import *
 from actioners import UserActioner
@@ -67,7 +68,7 @@ def start(message: Message):
         bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown')
         logger.info(f'User @{username} is registered')
     else:
-        bot.send_message(message.chat.id, START_OLD_USER_MSG)
+        bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEHyYRj779lyclNKRBYMp55szX19d7MDgACWxkAApITQEg3UQr5oSE8ny4E')
     bot.send_message(message.chat.id, START_FEATURES_MSG, parse_mode='Markdown')
 
 
@@ -134,7 +135,7 @@ def callback_inline_change_value(call: CallbackQuery):
             bot.user_actioner.update_track_data(call.from_user.id, None)
             bot.send_message(call.from_user.id, choice(TRACK_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove())
     elif action == 'CANCEL':
-        bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
+        pass
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_callback.prefix))
@@ -143,19 +144,28 @@ def callback_inline_single_calendar(call: CallbackQuery):
     chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
     if action == "DAY":
         if call.message.text == NOTIFY_INPUT_MSG:
-            if (date(int(year), int(month), int(day)) - date.today()).days <= 29:
+            if (date(int(year), int(month), int(day)) - date.today()).days <= TIME_DELTA:
                 bot.send_message(call.from_user.id, choice(NOTIFY_BUS_EXISTS_MSGS))
-            else:
-                bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
-                bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
-                logger.info(f"User {call.from_user.username} set new notify date: {chosen_date}")
+                return
+            bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
+            bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+            message = call.message
+            message.from_user = call.from_user
+            notify(message)
+            logger.info(f"User {call.from_user.username} set new notify date: {chosen_date}")
         elif call.message.text == TRACK_INPUT_DATE_MSG:
+            if (date(int(year), int(month), int(day)) - date.today()).days > TIME_DELTA:
+                bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS))
+                return
             bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=str(chosen_date))
             bot.send_message(call.from_user.id,
                              f'<b>{TRACK_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
                              parse_mode='HTML',
                              reply_markup=city_markup.create_table())
         elif call.message.text == PARSE_INPUT_MSG:
+            if (date(int(year), int(month), int(day)) - date.today()).days > TIME_DELTA:
+                bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS))
+                return
             bot.user_actioner.update_parse_date(user_id=call.from_user.id, updated_date=chosen_date)
             bot.send_message(call.from_user.id,
                              f'<b>{PARSE_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
@@ -231,6 +241,8 @@ def callback_inline_departure_time(call: CallbackQuery):
 
 @bot.message_handler(commands=["settings"])
 def settings(message: Message):
+    if not is_allowed_user(message):
+        return
     bot.send_message(message.chat.id, FEATURE_NOT_ADDED_MSGS)
 
 
@@ -244,6 +256,8 @@ def extra(message: Message):
 @bot.message_handler(commands=["description"])
 def description(message: Message):
     bot.send_message(message.chat.id, DESCRIPTION_MSG, parse_mode='Markdown')
+    if not is_allowed_user(message):
+        return
     users = bot.user_actioner.get_all_users()
     user_count = len(users)
     notify_count = user_count - [user[2] for user in users].count(None)
@@ -254,6 +268,8 @@ def description(message: Message):
 
 @bot.message_handler(commands=["faq"])
 def faq(message: Message):
+    if not is_allowed_user(message):
+        return
     bot.send_message(message.chat.id, FAQ_MSG, parse_mode='Markdown')
 
 
