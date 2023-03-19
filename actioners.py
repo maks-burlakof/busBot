@@ -94,3 +94,7 @@ class UserActioner:
 
     def update_parse_date(self, user_id: int, updated_date: Union[date, None]):
         self.database_client.execute_command('UPDATE users SET parse_date = ? WHERE user_id = ?;', (updated_date, user_id))
+
+    def same_track_data_count(self, track_data: str) -> int:
+        same_count = self.database_client.execute_select_command('SELECT COUNT(*) FROM users WHERE track_data = "%s";' % track_data)
+        return int(same_count[0][0]) - 1

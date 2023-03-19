@@ -105,9 +105,11 @@ def track(message: Message):
         try:
             y, m, d = [int(i) for i in track_data[0].split('-')]
             track_date = date(y, m, d)
-            bot.send_message(message.chat.id, TRACK_EXISTS_MSG % (track_date.strftime('%d %B %Yг. (%a)'),
-                                                                  track_data[1], track_data[2], track_data[3]),
-                             reply_markup=change_value_markup.create())
+            response_text = TRACK_EXISTS_MSG % (track_date.strftime('%d %B %Yг. (%a)'),
+                                                track_data[1], track_data[2], track_data[3])
+            same_count = bot.user_actioner.same_track_data_count(f"{track_data[0]} {track_data[1]} {track_data[2]} {track_data[3]}")
+            response_text += f'\nС тобой рейс отслеживают {same_count} человек' if same_count > 0 else ""
+            bot.send_message(message.chat.id, response_text, reply_markup=change_value_markup.create())
         except (IndexError, ValueError):
             bot.user_actioner.update_track_data(message.from_user.id, None)
             track(message)
