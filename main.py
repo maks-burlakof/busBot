@@ -54,17 +54,32 @@ buy_ticket_markup = BuyTicketMarkup()
 change_value_markup = ChangeValueMarkup()
 
 
-@bot.message_handler(commands=['start'])
+def is_allowed_user(message: Message, is_silent=False):
+    if bot.user_actioner.is_user_active(message.from_user.id):
+        return True
+    else:
+        if not is_silent:
+            bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG))
+        return False
+
+
+def is_admin(message: Message):
+    if message.chat.id == int(ADMIN_CHAT_ID):
+        return True
+    else:
+        bot.send_message(message.chat.id, NO_RIGHTS_MSG)
+        return False
+
+
+@bot.message_handler(commands=['start'], func=is_allowed_user)
 def start(message: Message):
     user_id = message.from_user.id
     username = message.from_user.username
     chat_id = message.chat.id
-    if not is_allowed_user(message):
-        return
     user = bot.user_actioner.get_user(user_id)
     if not user:
         bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEG0ZJjmPVT7_NYus3XFkwVDIaW0hQ7gwACpgwAAl3b6EuwssAGdg1yFSwE')
-        bot.user_actioner.add_user(user_id=str(user_id), username=username, chat_id=chat_id)
+        bot.user_actioner.add_active_user(user_id=str(user_id), username=username, chat_id=chat_id)
         bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown')
         logger.info(f'User @{username} is registered')
     else:
@@ -72,10 +87,8 @@ def start(message: Message):
     bot.send_message(message.chat.id, START_FEATURES_MSG, parse_mode='Markdown')
 
 
-@bot.message_handler(commands=["notify"])
+@bot.message_handler(commands=["notify"], func=is_allowed_user)
 def notify(message: Message):
-    if not is_allowed_user(message):
-        return
     notify_date = bot.user_actioner.get_user(message.from_user.id)[3]
     if notify_date:
         d, m, y = [int(i) for i in notify_date.split('-')]
@@ -87,18 +100,14 @@ def notify(message: Message):
                          reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
 
-@bot.message_handler(commands=["parse"])
+@bot.message_handler(commands=["parse"], func=is_allowed_user)
 def parse(message: Message):
-    if not is_allowed_user(message):
-        return
     bot.send_message(message.chat.id, PARSE_INPUT_MSG,
                      reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
 
-@bot.message_handler(commands=["track"])
+@bot.message_handler(commands=["track"], func=is_allowed_user)
 def track(message: Message):
-    if not is_allowed_user(message):
-        return
     track_data = bot.user_actioner.get_user(message.from_user.id)[4]
     if track_data:
         track_data = track_data.split(' ')
@@ -241,10 +250,8 @@ def callback_inline_departure_time(call: CallbackQuery):
         bot.user_actioner.update_track_data(call.from_user.id, None)
 
 
-@bot.message_handler(commands=["settings"])
+@bot.message_handler(commands=["settings"], func=is_allowed_user)
 def settings(message: Message):
-    if not is_allowed_user(message):
-        return
     bot.send_message(message.chat.id, FEATURE_NOT_ADDED_MSGS)
 
 
@@ -258,20 +265,18 @@ def extra(message: Message):
 @bot.message_handler(commands=["description"])
 def description(message: Message):
     bot.send_message(message.chat.id, DESCRIPTION_MSG, parse_mode='Markdown')
-    if not is_allowed_user(message):
+    if not is_allowed_user(message, is_silent=True):
         return
     users = bot.user_actioner.get_all_users()
     user_count = len(users)
-    notify_count = user_count - [user[2] for user in users].count(None)
-    track_count = user_count - [user[3] for user in users].count(None)
+    notify_count = user_count - [user[3] for user in users].count(None)
+    track_count = user_count - [user[4] for user in users].count(None)
     bot.send_message(message.chat.id, STATISTICS_MSG % (len(users), notify_count, track_count),
                      parse_mode='Markdown')
 
 
-@bot.message_handler(commands=["faq"])
+@bot.message_handler(commands=["faq"], func=is_allowed_user)
 def faq(message: Message):
-    if not is_allowed_user(message):
-        return
     bot.send_message(message.chat.id, FAQ_MSG, parse_mode='Markdown')
 
 
@@ -296,10 +301,8 @@ def feedback_confirmation(message: Message, feedback_text: str):
         bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
 
-@bot.message_handler(commands=["announcement_text"])
+@bot.message_handler(commands=["announcement_text"], func=is_admin)
 def announcement_text(message: Message):
-    if not is_admin(message):
-        return
     bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_INPUT_MSG)
     bot.register_next_step_handler(message, announcement_text_speech)
 
@@ -315,64 +318,68 @@ def announcement_text_confirmation(message: Message, ann_text: str):
         bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_SENT_MSG)
         users = bot.user_actioner.get_all_users()
         for user in users:
-            bot.send_message(user[1], ANNOUNCEMENT_TEXT_MSG % ann_text, parse_mode='Markdown')
+            bot.send_message(user[2], ANNOUNCEMENT_TEXT_MSG % ann_text, parse_mode='Markdown')
     else:
         bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
 
-@bot.message_handler(commands=["announcement_auto"])
+@bot.message_handler(commands=["announcement_auto"], func=is_admin)
 def announcement_auto(message: Message):
-    if not is_admin(message):
-        return
     bot.send_message(message.chat.id, FEATURE_NOT_ADDED_MSGS)
 
 
-@bot.message_handler(commands=["users"])
+@bot.message_handler(commands=["users"], func=is_admin)
 def users_list(message: Message):
-    if not is_admin(message):
-        return
     users = bot.user_actioner.get_all_users()
-    response = "@"
-    response += "\n@".join([user[0] for user in users])
+    response = ''
+    for user in users:
+        if not bot.user_actioner.is_user_active(user[0]):
+            response += '❌ '
+        response += '{} - @{}\n'.format(user[0], user[1])
     bot.send_message(message.chat.id, USER_LIST_MSG + response, parse_mode='HTML')
 
 
-@bot.message_handler(commands=["ban"])
+@bot.message_handler(commands=["ban"], func=is_admin)
 def ban_user(message: Message):
-    if not is_admin(message):
-        return
-    bot.send_message(message.chat.id, BAN_USER_MSG)
+
+    def ban_user_confirmation(msg):
+        if 'Отменить' in msg.text:
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS))
+            return
+
+        try:
+            blocking_id = int(msg.text)
+        except ValueError:
+            return
+        users = bot.user_actioner.get_all_users()
+        for user in users:
+            if user[0] == blocking_id:
+                bot.user_actioner.make_user_inactive(blocking_id)
+                username = '@{}'.format(user[1]) if user[1] else ' '
+                bot.send_message(msg.chat.id, BAN_USER_CONFIRMATION_MSG % username)
+                break
+
+    bot.send_message(message.chat.id, BAN_USER_MSG, parse_mode='MarkdownV2')
     users_list(message)
     bot.register_next_step_handler(message, ban_user_confirmation)
 
 
-def ban_user_confirmation(message: Message):
-    if 'Отменить' in message.text:
-        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
-    bot.user_actioner.remove_user_from_whitelist(message.text)
-    bot.send_message(message.chat.id, BAN_USER_CONFIRMATION_MSG)
-
-
-@bot.message_handler(commands=["database"])
+@bot.message_handler(commands=["database"], func=is_admin)
 def database_view(message: Message):
-    if not is_admin(message):
-        return
     users = bot.user_actioner.get_all_users()
     response = ''
     for user in users:
-        if user[2]:
-            response += f'@{user[0]}\n1️⃣ {user[2]}\n'
-            if user[3]:
-                response += f'2️⃣ {user[3]}\n'
-        elif user[3]:
-            response += f'@{user[0]}\n2️⃣ {user[3]}\n'
+        if user[3]:
+            response += f'@{user[1]}\n1️⃣ {user[3]}\n'
+            if user[4]:
+                response += f'2️⃣ {user[4]}\n'
+        elif user[4]:
+            response += f'@{user[1]}\n2️⃣ {user[4]}\n'
     bot.send_message(message.chat.id, DATABASE_LIST_MSG + response, parse_mode='HTML')
 
 
-@bot.message_handler(commands=["exit"])
+@bot.message_handler(commands=["exit"], func=is_admin)
 def exit_bot(message: Message):
-    if not is_admin(message):
-        return
     bot.send_message(message.chat.id, EXIT_CONFIRMATION_MSG, parse_mode='Markdown')
     bot.register_next_step_handler(message, exit_bot_confirmation)
 
@@ -400,37 +407,31 @@ def register_confirmation(message: Message):
         return
     else:
         bot.user_actioner.remove_invite_code(code)
-        bot.user_actioner.add_user_in_whitelist(message.from_user.username)
         logger.info(f"User @{message.from_user.username} used an invitation code")
         bot.send_message(ADMIN_CHAT_ID, f'#INFO Пользователь @{message.from_user.username} '
                                         f'использовал пригласительный код')
         bot.send_message(message.chat.id, REGISTER_CODE_CORRECT_MSG)
         start(message)
+        bot.user_actioner.make_user_active(message.from_user.id)
 
 
-@bot.message_handler(commands=["invite_codes"])
+@bot.message_handler(commands=["invite_codes"], func=is_admin)
 def send_invite_codes(message: Message):
-    if not is_admin(message):
-        return
     codes = bot.user_actioner.get_invite_codes()
     msg = "\n".join(f"`{code[0]}`" for code in codes)
     bot.send_message(message.chat.id, msg, parse_mode='MarkdownV2')
 
 
-@bot.message_handler(commands=["invite_codes_create"])
+@bot.message_handler(commands=["invite_codes_create"], func=is_admin)
 def create_invite_codes(message: Message):
-    if not is_admin(message):
-        return
     symbols = ascii_letters + digits
     for _ in range(5):
         bot.user_actioner.add_invite_code(''.join(sample(symbols, k=20)))
     bot.send_message(message.chat.id, INVITE_CODES_CREATED_MSG)
 
 
-@bot.message_handler(commands=["logs"])
+@bot.message_handler(commands=["logs"], func=is_admin)
 def send_logs(message: Message):
-    if not is_admin(message):
-        return
     with open('logs.log', 'rb') as f:
         try:
             bot.send_document(message.chat.id, document=f, caption="#LOGS")
@@ -438,10 +439,8 @@ def send_logs(message: Message):
             bot.send_message(message.chat.id, 'Файл логов пуст')
 
 
-@bot.message_handler(commands=["clear_logs"])
+@bot.message_handler(commands=["clear_logs"], func=is_admin)
 def clear_logs(message: Message):
-    if not is_admin(message):
-        return
     send_logs(message)
     with open('logs.log', 'w') as f:
         f.write('')
@@ -455,22 +454,8 @@ def secret(message: Message):
 
 @bot.message_handler()
 def ordinary_text(message: Message):
-    bot.send_message(message.chat.id, choice(ORDINARY_TEXT_MSGS))
-
-
-def is_allowed_user(message: Message):
-    if (message.from_user.username,) not in bot.user_actioner.get_user_whitelist():
-        bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG))
-        return False
-    return True
-
-
-def is_admin(message):
-    if message.chat.id != int(ADMIN_CHAT_ID):
-        bot.send_message(message.chat.id, NO_RIGHTS_MSG)
-        return False
-    else:
-        return True
+    if is_allowed_user(message, is_silent=True):
+        bot.send_message(message.chat.id, choice(ORDINARY_TEXT_MSGS))
 
 
 while True:
