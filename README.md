@@ -41,25 +41,11 @@ sudo apt-get install language-pack-ru-base
 python3 main.py
 deactivate
 ```
-After successfully launching the bot, you need to add authorized users to the newly created sqlite3 database - `users.db`. This can be done in several ways, but I recommend directly accessing the database in the console using the `sqlite3` utility. To install it in Unix systems, use
-```bash
-sudo apt install sqlite3
-```
-Then open the database via
-```bash
-sqlite3 users.db
-```
-Using an SQL query, let's add the first allowed user - ourselves! - to the user_whitelist table. Use
-```sql
-INSERT INTO user_whitelist (username) VALUES ("your-username");
-```
-where in the quotes instead of `your-username` specify your Telegram nickname **without** the @ sign. Done! Now the bot knows that you are on the whitelist and will allow you to use all its advantages!
 
-The next step in the configuration is to set the `ADMIN_CHAT_ID` environment variable, if you did not set this value when creating the environment variables earlier. In the created database, a `chat id` appeared with you as the first user. We need this value. With another SQL query, we will find out this value:
-```sql
-SELECT username, chat_id FROM users
-```
-The answer will be a list of values, one of which is your Telegram username and the other is your `chat id`. Copy this value and specify it in the environment variable that you created a few steps earlier.
+The next step is to set the `ADMIN_CHAT_ID` environment variable, if you did not set this value when creating the environment variables earlier.
+
+You can retrieve your Telegram ID in many ways (look up in the google). Copy this value and specify it in the environment variable that you created a few steps earlier.
+
 Done! Configuration complete!
 
 ### Setting values for environment variables 

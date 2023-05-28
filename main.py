@@ -6,7 +6,7 @@ from os import environ
 import locale
 from logging import getLogger, config
 import telebot
-from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
+from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton
 
 from workers.reminder import TIME_DELTA
 from message_texts import *
@@ -81,7 +81,7 @@ def start(message: Message):
         bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEG0ZJjmPVT7_NYus3XFkwVDIaW0hQ7gwACpgwAAl3b6EuwssAGdg1yFSwE')
         bot.user_actioner.add_active_user(user_id=str(user_id), username=username, chat_id=chat_id)
         bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown')
-        logger.info(f'User @{username} is registered')
+        logger.info(f'{message.from_user.full_name} @{username} id:{user_id} is registered')
     else:
         bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEHyYRj779lyclNKRBYMp55szX19d7MDgACWxkAApITQEg3UQr5oSE8ny4E')
     bot.send_message(message.chat.id, START_FEATURES_MSG, parse_mode='Markdown')
@@ -163,7 +163,7 @@ def callback_inline_single_calendar(call: CallbackQuery):
             message = call.message
             message.from_user = call.from_user
             notify(message)
-            logger.info(f"User {call.from_user.username} set new notify date: {chosen_date}")
+            logger.info(f"{call.from_user.full_name} @{call.from_user.username} set new notify date: {chosen_date}")
         elif call.message.text == TRACK_INPUT_DATE_MSG:
             if (date(int(year), int(month), int(day)) - date.today()).days > TIME_DELTA:
                 bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS))
@@ -222,7 +222,7 @@ def callback_inline_cities(call: CallbackQuery):
                     (city_from, city_to, datetime.strptime(f'{departure_date}', '%Y-%m-%d').strftime('%d %B %Yг. (%a)'))
                     + '\n' + stylized, call.message.chat.id, msg.id, parse_mode='Markdown',
                     reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date, parser))
-                logger.info(f"User {call.from_user.username} parsed: {departure_date} {city_from} - {city_to}")
+                logger.info(f"{call.from_user.full_name} @{call.from_user.username} parsed: {departure_date} {city_from} - {city_to}")
             else:
                 bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, msg.id)
 
@@ -243,7 +243,7 @@ def callback_inline_departure_time(call: CallbackQuery):
         message = call.message
         message.from_user = call.from_user
         track(message)
-        logger.info(f"User {call.from_user.username} set new track data: {track_data} {departure_time}")
+        logger.info(f"{call.from_user.full_name} @{call.from_user.username} set new track data: {track_data} {departure_time}")
     else:
         bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS_MSGS),
                          reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date, parser))
@@ -282,45 +282,46 @@ def faq(message: Message):
 
 @bot.message_handler(commands=["feedback"])
 def feedback(message: Message):
+
+    def feedback_speech(msg: Message):
+        bot.reply_to(msg, FEEDBACK_CONFIRMATION_MSG)
+        send_markup = ReplyKeyboardMarkup()
+        send_markup.row(KeyboardButton('📩 Да, отправить!'), KeyboardButton('🫣 Ой, я передумал'))
+        bot.send_message(msg.chat.id, FEEDBACK_TO_ADMIN_MSG % (msg.from_user.full_name, msg.text), reply_markup=send_markup)
+        bot.register_next_step_handler(msg, feedback_confirmation, msg.text)
+
+    def feedback_confirmation(msg: Message, feedback_text: str):
+        if "отправить" in msg.text.lower():
+            bot.send_message(ADMIN_CHAT_ID,
+                             '#INFO:' + FEEDBACK_TO_ADMIN_MSG % (msg.from_user.full_name, feedback_text))
+            bot.send_message(msg.chat.id, FEEDBACK_SUBMIT_MSG, reply_markup=ReplyKeyboardRemove())
+            logger.info(f'{msg.from_user.full_name} @{msg.from_user.username} id:{msg.from_user.id} sent feedback: {feedback_text}')
+        else:
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
+
     bot.reply_to(message, FEEDBACK_MSG)
     bot.register_next_step_handler(message, feedback_speech)
 
 
-def feedback_speech(message: Message):
-    bot.reply_to(message, FEEDBACK_CONFIRMATION_MSG)
-    bot.send_message(message.chat.id, FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, message.text))
-    bot.register_next_step_handler(message, feedback_confirmation, message.text)
-
-
-def feedback_confirmation(message: Message, feedback_text: str):
-    if message.text.title().strip() == "Отправить":
-        bot.send_message(ADMIN_CHAT_ID, '#INFO:' + FEEDBACK_TO_ADMIN_MSG % (message.from_user.username, feedback_text))
-        bot.reply_to(message, FEEDBACK_SUBMIT_MSG)
-        logger.info(f'User @{message.from_user.username} sent feedback: {feedback_text}')
-    else:
-        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
-
-
 @bot.message_handler(commands=["announcement_text"], func=is_admin)
 def announcement_text(message: Message):
+
+    def announcement_text_speech(msg: Message):
+        bot.reply_to(msg, ANNOUNCEMENT_TEXT_CONFIRMATION_MSG)
+        bot.send_message(msg.chat.id, ANNOUNCEMENT_TEXT_MSG % msg.text, parse_mode='Markdown')
+        bot.register_next_step_handler(msg, announcement_text_confirmation, msg.text)
+
+    def announcement_text_confirmation(msg: Message, ann_text: str):
+        if msg.text.title().strip() == "Отправить":
+            bot.send_message(msg.chat.id, ANNOUNCEMENT_TEXT_SENT_MSG)
+            users = bot.user_actioner.get_all_users()
+            for user in users:
+                bot.send_message(user[2], ANNOUNCEMENT_TEXT_MSG % ann_text, parse_mode='Markdown')
+        else:
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS))
+
     bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_INPUT_MSG)
     bot.register_next_step_handler(message, announcement_text_speech)
-
-
-def announcement_text_speech(message: Message):
-    bot.reply_to(message, ANNOUNCEMENT_TEXT_CONFIRMATION_MSG)
-    bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_MSG % message.text, parse_mode='Markdown')
-    bot.register_next_step_handler(message, announcement_text_confirmation, message.text)
-
-
-def announcement_text_confirmation(message: Message, ann_text: str):
-    if message.text.title().strip() == "Отправить":
-        bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_SENT_MSG)
-        users = bot.user_actioner.get_all_users()
-        for user in users:
-            bot.send_message(user[2], ANNOUNCEMENT_TEXT_MSG % ann_text, parse_mode='Markdown')
-    else:
-        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
 
 
 @bot.message_handler(commands=["announcement_auto"], func=is_admin)
@@ -380,39 +381,40 @@ def database_view(message: Message):
 
 @bot.message_handler(commands=["exit"], func=is_admin)
 def exit_bot(message: Message):
+
+    def exit_bot_confirmation(msg: Message):
+        if msg.text.title().strip() == 'Выключение':
+            bot.send_message(msg.chat.id, EXIT_MSG)
+            logger.critical(
+                f'The bot was disabled at the initiative of the administrator {msg.from_user.full_name} @{msg.from_user.username}')
+            bot.stop_bot()
+        else:
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS))
+
     bot.send_message(message.chat.id, EXIT_CONFIRMATION_MSG, parse_mode='Markdown')
     bot.register_next_step_handler(message, exit_bot_confirmation)
 
 
-def exit_bot_confirmation(message: Message):
-    if message.text.title().strip() == 'Выключение':
-        bot.send_message(message.chat.id, EXIT_MSG)
-        logger.critical(f'The bot was disabled at the initiative of the administrator @{message.from_user.username}')
-        bot.stop_bot()
-    else:
-        bot.send_message(message.chat.id, choice(CANCEL_MSGS))
-
-
 @bot.message_handler(commands=["register"])
 def register(message: Message):
+
+    def register_confirmation(msg: Message):
+        code = msg.text.strip(' ')
+        codes = bot.user_actioner.get_invite_codes()
+        if (code,) not in codes:
+            bot.send_message(msg.chat.id, REGISTER_CODE_INCORRECT_MSG)
+            return
+        else:
+            bot.user_actioner.remove_invite_code(code)
+            logger.info(f"{msg.from_user.full_name} @{msg.from_user.username} id:{msg.from_user.id} used an invitation code: {code}")
+            bot.send_message(ADMIN_CHAT_ID, f'#INFO {msg.from_user.full_name} @{msg.from_user.username} '
+                                            f'использовал пригласительный код')
+            bot.send_message(msg.chat.id, REGISTER_CODE_CORRECT_MSG)
+            start(msg)
+            bot.user_actioner.make_user_active(msg.from_user.id)
+
     bot.send_message(message.chat.id, REGISTER_MSG)
     bot.register_next_step_handler(message, register_confirmation)
-
-
-def register_confirmation(message: Message):
-    code = message.text.strip(' ')
-    codes = bot.user_actioner.get_invite_codes()
-    if (code,) not in codes:
-        bot.send_message(message.chat.id, REGISTER_CODE_INCORRECT_MSG)
-        return
-    else:
-        bot.user_actioner.remove_invite_code(code)
-        logger.info(f"User @{message.from_user.username} used an invitation code")
-        bot.send_message(ADMIN_CHAT_ID, f'#INFO Пользователь @{message.from_user.username} '
-                                        f'использовал пригласительный код')
-        bot.send_message(message.chat.id, REGISTER_CODE_CORRECT_MSG)
-        start(message)
-        bot.user_actioner.make_user_active(message.from_user.id)
 
 
 @bot.message_handler(commands=["invite_codes"], func=is_admin)
@@ -449,7 +451,7 @@ def clear_logs(message: Message):
 @bot.message_handler(commands=["secret"])
 def secret(message: Message):
     bot.send_message(message.chat.id, SECRET_MSG, parse_mode='MarkdownV2')
-    bot.send_message(ADMIN_CHAT_ID, f'#INFO: @{message.from_user.username} отправил /secret')
+    bot.send_message(ADMIN_CHAT_ID, f'#INFO: {message.from_user.full_name} @{message.from_user.username} отправил /secret')
 
 
 @bot.message_handler()
