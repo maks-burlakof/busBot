@@ -21,6 +21,7 @@ logger = getLogger(__name__)
 
 TOKEN = environ.get('TOKEN')
 ADMIN_CHAT_ID = environ.get('ADMIN_CHAT_ID')
+MAX_BUSES = 3
 
 
 class MyBot(telebot.TeleBot):
@@ -59,7 +60,7 @@ def is_allowed_user(message: Message, is_silent=False):
         return True
     else:
         if not is_silent:
-            bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG))
+            bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG), disable_notification=True)
         return False
 
 
@@ -67,7 +68,7 @@ def is_admin(message: Message):
     if message.chat.id == int(ADMIN_CHAT_ID):
         return True
     else:
-        bot.send_message(message.chat.id, NO_RIGHTS_MSG)
+        bot.send_message(message.chat.id, NO_RIGHTS_MSG, disable_notification=True)
         return False
 
 
@@ -80,22 +81,32 @@ def start(message: Message):
     if not user:
         bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEG0ZJjmPVT7_NYus3XFkwVDIaW0hQ7gwACpgwAAl3b6EuwssAGdg1yFSwE')
         bot.user_actioner.add_active_user(user_id=str(user_id), username=username, chat_id=chat_id)
-        bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown')
+        bot.send_message(message.chat.id, START_NEW_USER_MSG % message.from_user.first_name, parse_mode='Markdown',
+                         disable_notification=True)
         logger.info(f'{message.from_user.full_name} @{username} id:{user_id} is registered')
     else:
         bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEHyYRj779lyclNKRBYMp55szX19d7MDgACWxkAApITQEg3UQr5oSE8ny4E')
-    bot.send_message(message.chat.id, START_FEATURES_MSG, parse_mode='Markdown')
+    bot.send_message(message.chat.id, START_FEATURES_MSG, parse_mode='Markdown', disable_notification=True)
 
 
 @bot.message_handler(commands=["notify"], func=is_allowed_user)
 def notify(message: Message):
-    notify_date = bot.user_actioner.get_user(message.from_user.id)[3]
-    if notify_date:
-        d, m, y = [int(i) for i in notify_date.split('-')]
-        notify_date = date(d, m, y)
-        bot.send_message(message.chat.id, NOTIFY_EXISTS_MSG % notify_date.strftime('%d %B %Yг. (%a)'),
-                         reply_markup=change_value_markup.create())
+    user = bot.user_actioner.get_user(message.from_user.id)
+    if not user:
+        return
+    notify_data = user[3]
+    if notify_data:
+        len_data = len(notify_data)
+        markup = change_value_markup.add_create('NOTIFY', len_data) if len_data < MAX_BUSES else None
+        bot.send_message(message.chat.id, NOTIFY_EXISTS_MSG, reply_markup=markup, parse_mode='Markdown')
+        for i in range(len_data):
+            y, m, d = [int(j) for j in notify_data[i]['date'].split('-')]
+            notify_date = date(y, m, d)
+            bot.send_message(message.chat.id, '🕐 {}'.format(notify_date.strftime('%d %B %Yг. (%a)')),
+                             disable_notification=True,
+                             reply_markup=change_value_markup.remove_create('NOTIFY', i, len_data))
     else:
+        bot.user_actioner.add_notify_date(message.from_user.id)
         bot.send_message(message.chat.id, NOTIFY_INPUT_MSG,
                          reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
@@ -127,28 +138,43 @@ def track(message: Message):
                          reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
 
+# CHANGE VALUE MARKUP
 @bot.callback_query_handler(func=lambda call: call.data.startswith(change_value_markup.prefix))
 def callback_inline_change_value(call: CallbackQuery):
-    name, action = call.data.split(calendar_callback.sep)
-    bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
-    if action == 'CHANGE':
-        if call.message.text[:call.message.text.find('\n')] == NOTIFY_EXISTS_MSG[:NOTIFY_EXISTS_MSG.find('\n')]:
+    prefix, action, action_type, elem_index, elems_len = call.data.split(change_value_markup.sep)
+    elem_index = int(elem_index)
+    elems_len = int(elems_len)
+    ids_list = [*range(call.message.id - elem_index - 1, call.message.id),
+                *range(call.message.id, call.message.id + elems_len - elem_index)]
+    for i in ids_list:
+        try:
+            bot.delete_message(chat_id=call.message.chat.id, message_id=i)
+        except telebot.apihelper.ApiTelegramException:
+            pass
+    if action == 'ADD':
+        if action_type == 'NOTIFY':
+            bot.user_actioner.add_notify_date(call.from_user.id)
             bot.send_message(call.message.chat.id, NOTIFY_INPUT_MSG,
                              reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
         elif call.message.text[:call.message.text.find('\n')] == TRACK_EXISTS_MSG[:TRACK_EXISTS_MSG.find('\n')]:
             bot.send_message(call.message.chat.id, TRACK_INPUT_DATE_MSG,
                              reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
     elif action == 'RESET':
-        if call.message.text[:call.message.text.find('\n')] == NOTIFY_EXISTS_MSG[:NOTIFY_EXISTS_MSG.find('\n')]:
-            bot.user_actioner.update_notify_date(call.from_user.id, None)
+        message = call.message
+        message.from_user = call.from_user
+        if action_type == 'NOTIFY':
+            bot.user_actioner.remove_notify_date(call.from_user.id, elem_index)
             bot.send_message(call.from_user.id, choice(NOTIFY_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove())
+            notify(message)
         elif call.message.text[:call.message.text.find('\n')] == TRACK_EXISTS_MSG[:TRACK_EXISTS_MSG.find('\n')]:
             bot.user_actioner.update_track_data(call.from_user.id, None)
             bot.send_message(call.from_user.id, choice(TRACK_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove())
+            track(message)
     elif action == 'CANCEL':
         pass
 
 
+# CALENDAR MARKUP
 @bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_callback.prefix))
 def callback_inline_single_calendar(call: CallbackQuery):
     name, action, year, month, day = call.data.split(calendar_callback.sep)
@@ -158,8 +184,12 @@ def callback_inline_single_calendar(call: CallbackQuery):
             if (date(int(year), int(month), int(day)) - date.today()).days <= TIME_DELTA:
                 bot.send_message(call.from_user.id, choice(NOTIFY_BUS_EXISTS_MSGS))
                 return
-            bot.user_actioner.update_notify_date(user_id=call.from_user.id, updated_date=chosen_date)
-            bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+            is_unique = bot.user_actioner.update_last_notify_date(call.from_user.id, 'date', str(chosen_date))
+            if is_unique:
+                response_msg = choice(NOTIFY_TRACK_SET_MSGS)
+            else:
+                response_msg = choice(NOTIFY_RECORD_EXIST_MSGS)
+            bot.send_message(call.from_user.id, response_msg, reply_markup=ReplyKeyboardRemove())
             message = call.message
             message.from_user = call.from_user
             notify(message)
@@ -177,7 +207,7 @@ def callback_inline_single_calendar(call: CallbackQuery):
             if (date(int(year), int(month), int(day)) - date.today()).days > TIME_DELTA:
                 bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS))
                 return
-            bot.user_actioner.update_parse_date(user_id=call.from_user.id, updated_date=chosen_date)
+            bot.user_actioner.update_parse_data(user_id=call.from_user.id, updated_date=chosen_date)
             bot.send_message(call.from_user.id,
                              f'<b>{PARSE_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
                              parse_mode='HTML',
@@ -186,6 +216,7 @@ def callback_inline_single_calendar(call: CallbackQuery):
         bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
 
 
+# CITY MARKUP
 @bot.callback_query_handler(func=lambda call: call.data.startswith(city_markup.prefix))
 def callback_inline_cities(call: CallbackQuery):
     name, action, city_from, city_to = call.data.split(city_markup.sep)
@@ -227,6 +258,7 @@ def callback_inline_cities(call: CallbackQuery):
                 bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, msg.id)
 
 
+# DEPARTURE TIME MARKUP
 @bot.callback_query_handler(func=lambda call: call.data.startswith(departure_time_markup.prefix))
 def callback_inline_departure_time(call: CallbackQuery):
     name, departure_time, free_places = call.data.split(departure_time_markup.sep)
@@ -252,7 +284,7 @@ def callback_inline_departure_time(call: CallbackQuery):
 
 @bot.message_handler(commands=["settings"], func=is_allowed_user)
 def settings(message: Message):
-    bot.send_message(message.chat.id, FEATURE_NOT_ADDED_MSGS)
+    bot.send_message(message.chat.id, FEATURE_NOT_ADDED_MSGS, disable_notification=True)
 
 
 @bot.message_handler(commands=["extra"])
@@ -272,7 +304,7 @@ def description(message: Message):
     notify_count = user_count - [user[3] for user in users].count(None)
     track_count = user_count - [user[4] for user in users].count(None)
     bot.send_message(message.chat.id, STATISTICS_MSG % (len(users), notify_count, track_count),
-                     parse_mode='Markdown')
+                     parse_mode='Markdown', disable_notification=True)
 
 
 @bot.message_handler(commands=["faq"], func=is_allowed_user)
@@ -284,20 +316,22 @@ def faq(message: Message):
 def feedback(message: Message):
 
     def feedback_speech(msg: Message):
-        bot.reply_to(msg, FEEDBACK_CONFIRMATION_MSG)
+        bot.reply_to(msg, FEEDBACK_CONFIRMATION_MSG, disable_notification=True)
         send_markup = ReplyKeyboardMarkup()
         send_markup.row(KeyboardButton('📩 Да, отправить!'), KeyboardButton('🫣 Ой, я передумал'))
-        bot.send_message(msg.chat.id, FEEDBACK_TO_ADMIN_MSG % (msg.from_user.full_name, msg.text), reply_markup=send_markup)
+        bot.send_message(msg.chat.id, FEEDBACK_TO_ADMIN_MSG % (msg.from_user.full_name, msg.text),
+                         reply_markup=send_markup, disable_notification=True)
         bot.register_next_step_handler(msg, feedback_confirmation, msg.text)
 
     def feedback_confirmation(msg: Message, feedback_text: str):
         if "отправить" in msg.text.lower():
-            bot.send_message(ADMIN_CHAT_ID,
-                             '#INFO:' + FEEDBACK_TO_ADMIN_MSG % (msg.from_user.full_name, feedback_text))
-            bot.send_message(msg.chat.id, FEEDBACK_SUBMIT_MSG, reply_markup=ReplyKeyboardRemove())
+            bot.send_message(ADMIN_CHAT_ID, '#INFO:' + FEEDBACK_TO_ADMIN_MSG % (msg.from_user.full_name, feedback_text))
+            bot.send_message(msg.chat.id, FEEDBACK_SUBMIT_MSG,
+                             reply_markup=ReplyKeyboardRemove(), disable_notification=True)
             logger.info(f'{msg.from_user.full_name} @{msg.from_user.username} id:{msg.from_user.id} sent feedback: {feedback_text}')
         else:
-            bot.send_message(msg.chat.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove())
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS),
+                             reply_markup=ReplyKeyboardRemove(), disable_notification=True)
 
     bot.reply_to(message, FEEDBACK_MSG)
     bot.register_next_step_handler(message, feedback_speech)
@@ -308,7 +342,7 @@ def announcement_text(message: Message):
 
     def announcement_text_speech(msg: Message):
         bot.reply_to(msg, ANNOUNCEMENT_TEXT_CONFIRMATION_MSG)
-        bot.send_message(msg.chat.id, ANNOUNCEMENT_TEXT_MSG % msg.text, parse_mode='Markdown')
+        bot.send_message(msg.chat.id, ANNOUNCEMENT_TEXT_MSG % msg.text, parse_mode='Markdown', disable_notification=True)
         bot.register_next_step_handler(msg, announcement_text_confirmation, msg.text)
 
     def announcement_text_confirmation(msg: Message, ann_text: str):
@@ -318,7 +352,7 @@ def announcement_text(message: Message):
             for user in users:
                 bot.send_message(user[2], ANNOUNCEMENT_TEXT_MSG % ann_text, parse_mode='Markdown')
         else:
-            bot.send_message(msg.chat.id, choice(CANCEL_MSGS))
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS), disable_notification=True)
 
     bot.send_message(message.chat.id, ANNOUNCEMENT_TEXT_INPUT_MSG)
     bot.register_next_step_handler(message, announcement_text_speech)
@@ -345,7 +379,7 @@ def ban_user(message: Message):
 
     def ban_user_confirmation(msg):
         if 'Отменить' in msg.text:
-            bot.send_message(msg.chat.id, choice(CANCEL_MSGS))
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS), disable_notification=True)
             return
 
         try:
@@ -376,7 +410,7 @@ def database_view(message: Message):
                 response += f'2️⃣ {user[4]}\n'
         elif user[4]:
             response += f'@{user[1]}\n2️⃣ {user[4]}\n'
-    bot.send_message(message.chat.id, DATABASE_LIST_MSG + response, parse_mode='HTML')
+    bot.send_message(message.chat.id, DATABASE_LIST_MSG + response, parse_mode='HTML', disable_notification=True)
 
 
 @bot.message_handler(commands=["exit"], func=is_admin)
@@ -385,11 +419,10 @@ def exit_bot(message: Message):
     def exit_bot_confirmation(msg: Message):
         if msg.text.title().strip() == 'Выключение':
             bot.send_message(msg.chat.id, EXIT_MSG)
-            logger.critical(
-                f'The bot was disabled at the initiative of the administrator {msg.from_user.full_name} @{msg.from_user.username}')
+            logger.critical(f'The bot was disabled at the initiative of the administrator {msg.from_user.full_name} @{msg.from_user.username}')
             bot.stop_bot()
         else:
-            bot.send_message(msg.chat.id, choice(CANCEL_MSGS))
+            bot.send_message(msg.chat.id, choice(CANCEL_MSGS), disable_notification=True)
 
     bot.send_message(message.chat.id, EXIT_CONFIRMATION_MSG, parse_mode='Markdown')
     bot.register_next_step_handler(message, exit_bot_confirmation)
@@ -409,10 +442,14 @@ def register(message: Message):
             logger.info(f"{msg.from_user.full_name} @{msg.from_user.username} id:{msg.from_user.id} used an invitation code: {code}")
             bot.send_message(ADMIN_CHAT_ID, f'#INFO {msg.from_user.full_name} @{msg.from_user.username} '
                                             f'использовал пригласительный код')
-            bot.send_message(msg.chat.id, REGISTER_CODE_CORRECT_MSG)
+            bot.send_message(msg.chat.id, REGISTER_CODE_CORRECT_MSG, disable_notification=True)
             start(msg)
             bot.user_actioner.make_user_active(msg.from_user.id)
 
+    user_id = message.from_user.id
+    if bot.user_actioner.get_user(user_id) and bot.user_actioner.is_user_active(user_id):
+        bot.send_message(message.chat.id, REGISTER_EXISTS_MSG, disable_notification=True)
+        return
     bot.send_message(message.chat.id, REGISTER_MSG)
     bot.register_next_step_handler(message, register_confirmation)
 
@@ -420,8 +457,9 @@ def register(message: Message):
 @bot.message_handler(commands=["invite_codes"], func=is_admin)
 def send_invite_codes(message: Message):
     codes = bot.user_actioner.get_invite_codes()
-    msg = "\n".join(f"`{code[0]}`" for code in codes)
-    bot.send_message(message.chat.id, msg, parse_mode='MarkdownV2')
+    response = INVITE_CODES_LIST_MSG
+    response += "\n".join(f"`{code[0]}`" for code in codes)
+    bot.send_message(message.chat.id, response, parse_mode='MarkdownV2', disable_notification=True)
 
 
 @bot.message_handler(commands=["invite_codes_create"], func=is_admin)
@@ -429,16 +467,17 @@ def create_invite_codes(message: Message):
     symbols = ascii_letters + digits
     for _ in range(5):
         bot.user_actioner.add_invite_code(''.join(sample(symbols, k=20)))
-    bot.send_message(message.chat.id, INVITE_CODES_CREATED_MSG)
+    bot.send_message(message.chat.id, INVITE_CODES_CREATED_MSG, disable_notification=True)
+    send_invite_codes(message)
 
 
 @bot.message_handler(commands=["logs"], func=is_admin)
 def send_logs(message: Message):
     with open('logs.log', 'rb') as f:
         try:
-            bot.send_document(message.chat.id, document=f, caption="#LOGS")
+            bot.send_document(message.chat.id, document=f, caption="#LOGS", disable_notification=True)
         except telebot.apihelper.ApiTelegramException:
-            bot.send_message(message.chat.id, 'Файл логов пуст')
+            bot.send_message(message.chat.id, 'Файл логов пуст', disable_notification=True)
 
 
 @bot.message_handler(commands=["clear_logs"], func=is_admin)

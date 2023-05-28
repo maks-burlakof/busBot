@@ -112,6 +112,17 @@ class ChangeValueMarkup:
         self.prefix = prefix
         self.sep = ':'
 
+    def add_create(self, action_type: str, total_num: int) -> InlineKeyboardMarkup:
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton('✅ Добавить', callback_data=self.sep.join([self.prefix, 'ADD', action_type, '-1', str(total_num)])))
+        return keyboard
+
+    def remove_create(self, action_type: str, index: int, total_num: int) -> InlineKeyboardMarkup:
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton('❌ Отменить', callback_data=self.sep.join([self.prefix, 'RESET', action_type, str(index), str(total_num)])))
+        return keyboard
+
+    # TODO: DEPRECATED
     def create(self) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton('✅ Изменить', callback_data=self.sep.join([self.prefix, 'CHANGE'])))

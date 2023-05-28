@@ -60,7 +60,7 @@ class Reminder:
                 "text": NOTIFY_MSG % str((date.today() + timedelta(days=TIME_DELTA)).strftime('%d %B %Yг. (%a)')),
                 "chat_id": chat_id,
                 "parse_mode": 'Markdown'})
-            self.user_actioner.update_notify_date(user_id=user_id, updated_date=None)
+            self.user_actioner.update_last_notify_date(user_id, None, None)  # TODO: incorrect
             logger.info(res)
 
     def track(self, track_ids: list):
