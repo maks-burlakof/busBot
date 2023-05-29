@@ -58,17 +58,28 @@ class UserActioner:
             data = []
         return data
 
+    @staticmethod
+    def _json_dump(data) -> str:
+        return json.dumps(data, ensure_ascii=False)
+
     # USERS ~~~~~~~~
 
     def get_user(self, user_id: int):
         user = self.database_client.execute_select_command('SELECT user_id, username, chat_id, notify_data, track_data, parse_data FROM users WHERE user_id = %s;' % user_id)
         if user:
             user = [elem for elem in user[0]]
+
             # TODO: skip unfinished additions
             notify_data = self._get_json_data(user[3])
             if notify_data and not notify_data[-1]['date']:
                 notify_data.pop(-1)
             user[3] = notify_data
+
+            parse_data = self._get_json_data(user[5])
+            if parse_data:
+                if not parse_data[-1]['date'] or not parse_data[-1]['from'] or not parse_data[-1]['to']:
+                    parse_data.pop(-1)
+            user[5] = parse_data
         else:
             user = []
         return user
@@ -114,22 +125,22 @@ class UserActioner:
 
     def add_notify_date(self, user_id: int):
         json_template = {
-            'date': '',
+            'date': ''
         }
         raw_data = self.database_client.execute_select_command('SELECT notify_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)
 
         if data and not data[-1]['date']:
-            # delete last unfinished addition
-            data.pop(-1)
+            data.pop(-1)  # delete last unfinished addition
 
         data.append(json_template)
-        completed_data = json.dumps(data)
+        completed_data = self._json_dump(data)
         self.database_client.execute_command('UPDATE users SET notify_data = ? WHERE user_id = ?;', (completed_data, user_id))
 
     def update_last_notify_date(self, user_id: int, key: str, value: str) -> bool:
         """
         Update last notify record.
+        :return: Record creation result.
         """
         raw_data = self.database_client.execute_select_command('SELECT notify_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)
@@ -138,7 +149,7 @@ class UserActioner:
             data[-1][key] = value
         else:
             data.pop(-1)
-        completed_data = json.dumps(data)
+        completed_data = self._json_dump(data)
         self.database_client.execute_command('UPDATE users SET notify_data = ? WHERE user_id = ?;', (completed_data, user_id))
         return is_unique
 
@@ -146,7 +157,7 @@ class UserActioner:
         raw_data = self.database_client.execute_select_command('SELECT notify_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)
         data.pop(index)
-        completed_data = json.dumps(data)
+        completed_data = self._json_dump(data)
         self.database_client.execute_command('UPDATE users SET notify_data = ? WHERE user_id = ?;', (completed_data, user_id))
 
     # TRACK ~~~~~~~~
@@ -166,5 +177,45 @@ class UserActioner:
 
     # PARSE ~~~~~~~~
 
-    def update_parse_data(self, user_id: int, updated_date: Union[date, None]):
-        self.database_client.execute_command('UPDATE users SET parse_data = ? WHERE user_id = ?;', (updated_date, user_id))
+    def add_parse_date(self, user_id: int):
+        json_template = {
+            'date': '',
+            'from': '',
+            'to': ''
+        }
+        raw_data = self.database_client.execute_select_command('SELECT parse_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+
+        if data:
+            if not data[-1]['date'] or not data[-1]['from'] or not data[-1]['to']:
+                data.pop(-1)  # delete last unfinished addition
+
+        data.append(json_template)
+        completed_data = self._json_dump(data)
+        self.database_client.execute_command('UPDATE users SET parse_data = ? WHERE user_id = ?;', (completed_data, user_id))
+
+    def get_last_parse_data(self, user_id: int) -> dict:
+        """
+        :return: Last uncompleted parse data record.
+        """
+        raw_data = self.database_client.execute_select_command('SELECT parse_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+        last_record = data[-1]
+        return last_record
+
+    def update_last_parse_data(self, user_id: int, key: str, value: str):
+        """
+        Update last uncompleted parse record.
+        """
+        raw_data = self.database_client.execute_select_command('SELECT parse_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+        data[-1][key] = value
+        completed_data = self._json_dump(data)
+        self.database_client.execute_command('UPDATE users SET parse_data = ? WHERE user_id = ?;', (completed_data, user_id))
+
+    def remove_parse_date(self, user_id: int, index: int):
+        raw_data = self.database_client.execute_select_command('SELECT parse_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+        data.pop(index)
+        completed_data = self._json_dump(data)
+        self.database_client.execute_command('UPDATE users SET parse_data = ? WHERE user_id = ?;', (completed_data, user_id))

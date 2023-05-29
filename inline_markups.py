@@ -53,7 +53,7 @@ RUSSIAN_LANGUAGE = Language(
 
 class CityMarkup:
     """
-        City Inline Markup data factory
+    City Inline Markup data factory.
     """
 
     def __init__(self, user_actioner, prefix: str = 'city_markup'):
@@ -65,9 +65,8 @@ class CityMarkup:
 
     def create_table(self, city_from: str = '', city_to: str = '') -> InlineKeyboardMarkup:
         """
-        Create a built in inline table with cities to choose destination and departure
-
-        :return: Returns an InlineKeyboardMarkup object with a table.
+        Create a built-in inline table with cities to choose destination and departure.
+        :return: InlineKeyboardMarkup object with a table.
         """
 
         keyboard = InlineKeyboardMarkup()
@@ -120,6 +119,12 @@ class ChangeValueMarkup:
     def remove_create(self, action_type: str, index: int, total_num: int) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton('❌ Отменить', callback_data=self.sep.join([self.prefix, 'RESET', action_type, str(index), str(total_num)])))
+        return keyboard
+
+    def history_create(self, action_type: str, history_elems: list) -> InlineKeyboardMarkup:
+        keyboard = InlineKeyboardMarkup()
+        for i in range(len(history_elems)):
+            keyboard.add(InlineKeyboardButton(history_elems[i], callback_data=self.sep.join([self.prefix, 'HISTORY', action_type, str(i), '0'])))
         return keyboard
 
     # TODO: DEPRECATED

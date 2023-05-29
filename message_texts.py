@@ -81,6 +81,8 @@ NO_BUSES_MSGS = [
 
 PARSE_INPUT_MSG = 'Выбери дату:'
 
+PARSE_HISTORY_MSG = 'Твоя история поиска 👀'
+
 # parse_input_route не должен быть равен track_input_route
 PARSE_INPUT_ROUTE_MSG = 'Укажи маршрут:'
 
