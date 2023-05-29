@@ -65,7 +65,8 @@ def is_allowed_user(message: Message, is_silent=False):
         return True
     else:
         if not is_silent:
-            bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG), disable_notification=True)
+            bot.send_message(message.chat.id, choice(USER_NOT_ALLOWED_MSG) + USER_NOT_ALLOWED_BASE_MSG,
+                             disable_notification=True)
         return False
 
 
@@ -107,7 +108,7 @@ def notify(message: Message):
         for i in range(len_data):
             y, m, d = [int(j) for j in notify_data[i]['date'].split('-')]
             notify_date = date(y, m, d)
-            bot.send_message(message.chat.id, '🕐 {}'.format(notify_date.strftime('%d %B %Yг. (%a)')),
+            bot.send_message(message.chat.id, '📆 {}'.format(notify_date.strftime('%d %B %Yг. (%a)')),
                              disable_notification=True,
                              reply_markup=change_value_markup.remove_create('NOTIFY', i, len_data))
     else:
@@ -143,21 +144,26 @@ def parse(message: Message):
 
 @bot.message_handler(commands=["track"], func=is_allowed_user)
 def track(message: Message):
-    track_data = bot.user_actioner.get_user(message.from_user.id)[4]
+    user = bot.user_actioner.get_user(message.from_user.id)
+    if not user:
+        return
+    track_data = user[4]
     if track_data:
-        track_data = track_data.split(' ')
-        try:
-            y, m, d = [int(i) for i in track_data[0].split('-')]
+        len_data = len(track_data)
+        markup = change_value_markup.add_create('TRACK', len_data) if len_data < MAX_BUSES else None
+        bot.send_message(message.chat.id, TRACK_EXISTS_MSG, reply_markup=markup, parse_mode='Markdown')
+        for i in range(len_data):
+            y, m, d = [int(j) for j in track_data[i]['date'].split('-')]
             track_date = date(y, m, d)
-            response_text = TRACK_EXISTS_MSG % (track_date.strftime('%d %B %Yг. (%a)'),
-                                                track_data[1], track_data[2], track_data[3])
-            same_count = bot.user_actioner.same_track_data_count(f"{track_data[0]} {track_data[1]} {track_data[2]} {track_data[3]}")
-            response_text += f'\nС тобой рейс отслеживают {same_count} человек' if same_count > 0 else ""
-            bot.send_message(message.chat.id, response_text, reply_markup=change_value_markup.create())
-        except (IndexError, ValueError):
-            bot.user_actioner.update_track_data(message.from_user.id, None)
-            track(message)
+            response_text = TRACK_BUS_TEMPLATE_MSG % (track_date.strftime('%d %B %Yг. (%a)'),
+                                                      track_data[i]['from'], track_data[i]['to'], track_data[i]['time'])
+            same_count = 0  # TODO: bot.user_actioner.same_track_data_count()
+            response_text += f'\nЭтот рейс отслеживают {same_count} человек' if same_count > 0 else ''  # TODO: правильное склонение
+            bot.send_message(message.chat.id, response_text,
+                             disable_notification=True,
+                             reply_markup=change_value_markup.remove_create('TRACK', i, len_data))
     else:
+        bot.user_actioner.add_track_date(message.from_user.id)
         bot.send_message(message.chat.id, TRACK_INPUT_DATE_MSG,
                          reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
 
@@ -177,9 +183,11 @@ def callback_inline_change_value(call: CallbackQuery):
             bot.send_message(call.message.chat.id, NOTIFY_INPUT_MSG,
                              reply_markup=calendar.create_calendar(name=calendar_callback.prefix),
                              disable_notification=True)
-        elif call.message.text[:call.message.text.find('\n')] == TRACK_EXISTS_MSG[:TRACK_EXISTS_MSG.find('\n')]:
+        elif action_type == 'TRACK':
+            bot.user_actioner.add_track_date(call.from_user.id)
             bot.send_message(call.message.chat.id, TRACK_INPUT_DATE_MSG,
-                             reply_markup=calendar.create_calendar(name=calendar_callback.prefix))
+                             reply_markup=calendar.create_calendar(name=calendar_callback.prefix),
+                             disable_notification=True)
 
     elif action == 'RESET':
         message = call.message
@@ -189,12 +197,14 @@ def callback_inline_change_value(call: CallbackQuery):
             bot.send_message(call.from_user.id, choice(NOTIFY_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove(),
                              disable_notification=True)
             notify(message)
-        elif call.message.text[:call.message.text.find('\n')] == TRACK_EXISTS_MSG[:TRACK_EXISTS_MSG.find('\n')]:
-            bot.user_actioner.update_track_data(call.from_user.id, None)
-            bot.send_message(call.from_user.id, choice(TRACK_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove())
+        elif action_type == 'TRACK':
+            bot.user_actioner.remove_track_date(call.from_user.id, elem_index)
+            bot.send_message(call.from_user.id, choice(TRACK_RESET_EXISTS_MSGS), reply_markup=ReplyKeyboardRemove(),
+                             disable_notification=True)
             track(message)
 
     elif action == 'HISTORY':
+
         if action_type == 'PARSE':
             user_id = call.from_user.id
             parse_data = bot.user_actioner.get_user(user_id)[5]
@@ -205,12 +215,16 @@ def callback_inline_change_value(call: CallbackQuery):
             call_cities.message.text = PARSE_INPUT_ROUTE_MSG
             callback_inline_cities(call_cities)  # emulate user's input
 
+        if action_type == 'TRACK':
+            pass
+
     bot.delete_messages_safe(call.message.chat.id, ids_list)
 
 
 # CALENDAR MARKUP
 @bot.callback_query_handler(func=lambda call: call.data.startswith(calendar_callback.prefix))
 def callback_inline_single_calendar(call: CallbackQuery):
+    user_id = call.from_user.id
     name, action, year, month, day = call.data.split(calendar_callback.sep)
     chosen_date = calendar.calendar_query_handler(bot, call, name, action, year, month, day)
 
@@ -221,47 +235,54 @@ def callback_inline_single_calendar(call: CallbackQuery):
 
         if call.message.text == NOTIFY_INPUT_MSG:
             if (date(int(year), int(month), int(day)) - date.today()).days <= TIME_DELTA:
-                bot.send_message(call.from_user.id, choice(NOTIFY_BUS_EXISTS_MSGS), disable_notification=True)
+                bot.send_message(user_id, choice(NOTIFY_BUS_EXISTS_MSGS), disable_notification=True)
                 return
-            is_unique = bot.user_actioner.update_last_notify_date(call.from_user.id, 'date', str(chosen_date))
+            is_unique = bot.user_actioner.update_last_notify_date(user_id, 'date', str(chosen_date))
             if is_unique:
                 response_msg = choice(NOTIFY_TRACK_SET_MSGS)
+                logger.info(f"{call.from_user.full_name} @{call.from_user.username} set new notify date: {chosen_date}")
             else:
                 response_msg = choice(NOTIFY_RECORD_EXIST_MSGS)
-            bot.send_message(call.from_user.id, response_msg, reply_markup=ReplyKeyboardRemove(), disable_notification=True)
+            bot.send_message(user_id, response_msg, reply_markup=ReplyKeyboardRemove(), disable_notification=True)
             message = call.message
             message.from_user = call.from_user
             notify(message)
-            logger.info(f"{call.from_user.full_name} @{call.from_user.username} set new notify date: {chosen_date}")
 
         elif call.message.text == TRACK_INPUT_DATE_MSG:
             if (date(int(year), int(month), int(day)) - date.today()).days > TIME_DELTA:
-                bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS))
+                bot.send_message(user_id, choice(NO_BUSES_MSGS))
                 return
-            bot.user_actioner.update_track_data(user_id=call.from_user.id, updated_data=str(chosen_date))
-            bot.send_message(call.from_user.id,
+            bot.user_actioner.update_last_track_date(user_id, 'date', str(chosen_date))
+            bot.send_message(user_id,
                              f'<b>{TRACK_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
                              parse_mode='HTML',
                              reply_markup=city_markup.create_table())
 
         elif call.message.text == PARSE_INPUT_MSG:
             if (date(int(year), int(month), int(day)) - date.today()).days > TIME_DELTA:
-                bot.send_message(call.from_user.id, choice(NO_BUSES_MSGS), disable_notification=True)
+                bot.send_message(user_id, choice(NO_BUSES_MSGS), disable_notification=True)
                 return
-            bot.user_actioner.update_last_parse_data(call.from_user.id, 'date', str(chosen_date))
-            bot.send_message(call.from_user.id,
+            bot.user_actioner.update_last_parse_data(user_id, 'date', str(chosen_date))
+            bot.send_message(user_id,
                              f'<b>{PARSE_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
                              parse_mode='HTML',
                              reply_markup=city_markup.create_table())
 
     elif action == 'CANCEL':
-        bot.send_message(call.from_user.id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove(), disable_notification=True)
+        bot.send_message(user_id, choice(CANCEL_MSGS), reply_markup=ReplyKeyboardRemove(), disable_notification=True)
+        if call.message.text == NOTIFY_INPUT_MSG:
+            bot.user_actioner.remove_notify_date(user_id, -1)
+        elif call.message.text == TRACK_INPUT_DATE_MSG:
+            bot.user_actioner.remove_track_date(user_id, -1)
+        elif call.message.text == PARSE_INPUT_MSG:
+            bot.user_actioner.remove_parse_date(user_id, -1)
 
 
 # CITY MARKUP
 @bot.callback_query_handler(func=lambda call: call.data.startswith(city_markup.prefix))
 def callback_inline_cities(call: CallbackQuery):
     name, action, city_from, city_to = call.data.split(city_markup.sep)
+    user_id = call.from_user.id
 
     if action == 'SET':
         bot.edit_message_reply_markup(call.message.chat.id, call.message.id,
@@ -271,24 +292,25 @@ def callback_inline_cities(call: CallbackQuery):
         bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
 
         if call.message.text.split('\n')[0] == TRACK_INPUT_ROUTE_MSG:
-            track_date = bot.user_actioner.get_user(call.from_user.id)[4]
-            bot.user_actioner.update_track_data(user_id=call.from_user.id,
-                                                updated_data=f'{track_date} {city_from} {city_to}')
+            track_date = bot.user_actioner.get_last_track_date(user_id)['date']
+            bot.user_actioner.update_last_track_date(user_id, 'from', city_from)
+            bot.user_actioner.update_last_track_date(user_id, 'to', city_to)
             d, m, y = [int(i) for i in track_date.split('-')]
-            msg = bot.send_message(call.from_user.id, choice(LOADING_MSGS), reply_markup=ReplyKeyboardRemove())
-            bot.send_message(call.from_user.id, f'<b>{TRACK_INPUT_DEPARTURE_TIME_MSG}</b>' +
+            msg = bot.send_message(user_id, choice(LOADING_MSGS),
+                                   reply_markup=ReplyKeyboardRemove(), disable_notification=True)
+            bot.send_message(user_id, f'<b>{TRACK_INPUT_DEPARTURE_TIME_MSG}</b>' +
                              SELECTED_DATE_MSG % date(d, m, y).strftime('%d %B %Yг. (%a)') +
                              SELECTED_ROUTE_MSG % (city_from, city_to),
-                             parse_mode='HTML',
+                             parse_mode='HTML', disable_notification=True,
                              reply_markup=departure_time_markup.create_list(city_from, city_to, track_date))
-            bot.delete_message(call.from_user.id, msg.id)
+            bot.delete_message(user_id, msg.id)
 
         elif call.message.text.split('\n')[0] == PARSE_INPUT_ROUTE_MSG:
-            msg = bot.send_message(call.from_user.id, choice(LOADING_MSGS))
-            departure_date = bot.user_actioner.get_last_parse_data(call.from_user.id)['date']
+            msg = bot.send_message(user_id, choice(LOADING_MSGS))
+            departure_date = bot.user_actioner.get_last_parse_data(user_id)['date']
             response = bot.parser.parse(city_from, city_to, departure_date)
-            bot.user_actioner.update_last_parse_data(call.from_user.id, 'from', city_from)
-            bot.user_actioner.update_last_parse_data(call.from_user.id, 'to', city_to)
+            bot.user_actioner.update_last_parse_data(user_id, 'from', city_from)
+            bot.user_actioner.update_last_parse_data(user_id, 'to', city_to)
             logger.info(f"{call.from_user.full_name} @{call.from_user.username} parsed: {departure_date} {city_from} - {city_to}")
             if response:
                 stylized = ""
@@ -309,25 +331,30 @@ def callback_inline_cities(call: CallbackQuery):
 # DEPARTURE TIME MARKUP
 @bot.callback_query_handler(func=lambda call: call.data.startswith(departure_time_markup.prefix))
 def callback_inline_departure_time(call: CallbackQuery):
+    user_id = call.from_user.id
     name, departure_time, free_places = call.data.split(departure_time_markup.sep)
-    track_data = bot.user_actioner.get_user(call.from_user.id)[4]
+
+    track_data = bot.user_actioner.get_last_track_date(user_id)
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
-    try:
-        departure_date, city_from, city_to = track_data.split(' ')
-        y, m, d = [int(i) for i in departure_date.split('-')]
-    except (IndexError, ValueError, AttributeError):
-        return
+    departure_date, city_from, city_to = track_data['date'], track_data['from'], track_data['to']
     if 'Нет мест' in free_places:
-        bot.user_actioner.update_track_data(call.from_user.id, f'{track_data} {departure_time}')
-        bot.send_message(call.from_user.id, choice(NOTIFY_TRACK_SET_MSGS), reply_markup=ReplyKeyboardRemove())
+        is_unique = bot.user_actioner.update_last_track_date(user_id, 'time', departure_time)
+        if is_unique:
+            response_msg = choice(NOTIFY_TRACK_SET_MSGS)
+            track_data['time'] = departure_time
+            logger.info(f"{call.from_user.full_name} @{call.from_user.username} set new track data: {track_data}")
+        else:
+            response_msg = choice(TRACK_RECORD_EXIST_MSGS)
+        bot.send_message(user_id, response_msg,
+                         reply_markup=ReplyKeyboardRemove(), disable_notification=True)
         message = call.message
         message.from_user = call.from_user
         track(message)
-        logger.info(f"{call.from_user.full_name} @{call.from_user.username} set new track data: {track_data} {departure_time}")
     else:
-        bot.send_message(call.from_user.id, choice(TRACK_FREE_PLACES_EXISTS_MSGS),
+        bot.send_message(user_id, choice(TRACK_FREE_PLACES_EXISTS_MSGS),
+                         disable_notification=True,
                          reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date, parser))
-        bot.user_actioner.update_track_data(call.from_user.id, None)
+        bot.user_actioner.remove_track_date(call.from_user.id, -1)
 
 
 @bot.message_handler(commands=["settings"], func=is_allowed_user)
@@ -339,7 +366,7 @@ def settings(message: Message):
 def extra(message: Message):
     bot.send_message(message.chat.id,
                      EXTRA_MSG + EXTRA_ADMIN_MSG if message.chat.id == int(ADMIN_CHAT_ID) else EXTRA_MSG,
-                     parse_mode='HTML')
+                     parse_mode='HTML', disable_notification=True)
 
 
 @bot.message_handler(commands=["description"])

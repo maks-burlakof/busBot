@@ -69,11 +69,16 @@ class UserActioner:
         if user:
             user = [elem for elem in user[0]]
 
-            # TODO: skip unfinished additions
             notify_data = self._get_json_data(user[3])
             if notify_data and not notify_data[-1]['date']:
                 notify_data.pop(-1)
             user[3] = notify_data
+
+            track_data = self._get_json_data(user[4])
+            if track_data:
+                if not track_data[-1]['date'] or not track_data[-1]['from'] or not track_data[-1]['to'] or not track_data[-1]['time']:
+                    track_data.pop(-1)
+            user[4] = track_data
 
             parse_data = self._get_json_data(user[5])
             if parse_data:
@@ -162,16 +167,73 @@ class UserActioner:
 
     # TRACK ~~~~~~~~
 
-    def update_track_data(self, user_id: int, updated_data: Union[str, None]):
-        self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (updated_data, user_id))
+    def add_track_date(self, user_id: int):
+        json_template = {
+            'date': '',
+            'from': '',
+            'to': '',
+            'time': '',
+            'passed': '',
+            'is_active': ''
+        }
+        raw_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
 
-    def update_track_time_passed(self, user_id: int, updated_delta: Union[int, None]):
+        if data:
+            if not data[-1]['date'] or not data[-1]['from'] or not data[-1]['to'] or not data[-1]['time']:
+                data.pop(-1)  # delete last unfinished addition
+
+        data.append(json_template)
+        completed_data = self._json_dump(data)
+        self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+
+    def update_last_track_date(self, user_id: int, key: str, value: str):
+        """
+        Update last track record.
+        :return: Record creation result.
+        """
+        raw_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+        is_unique = True
+        if key == 'time':  # the last step in a new track record creation
+            for dict_record in data[:-1]:
+                if data[-1]['date'] == dict_record['date'] and data[-1]['from'] == dict_record['from'] and \
+                        data[-1]['to'] == dict_record['to'] and value == dict_record['time']:
+                    is_unique = False
+                    break
+            if is_unique:
+                data[-1][key] = value
+            else:
+                data.pop(-1)
+        else:
+            data[-1][key] = value
+        completed_data = self._json_dump(data)
+        self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+        return is_unique
+
+    def get_last_track_date(self, user_id: int) -> dict:
+        """
+        :return: The last uncompleted track data record.
+        """
+        raw_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+        last_record = data[-1]
+        return last_record
+
+    def remove_track_date(self, user_id: int, index: int):
+        raw_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+        data.pop(index)
+        completed_data = self._json_dump(data)
+        self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+
+    def update_track_time_passed(self, user_id: int, updated_delta: Union[int, None]):  # TODO: deprecated
         if updated_delta == -1:
             self.database_client.execute_command('UPDATE users SET track_time_passed = track_time_passed + ? WHERE user_id = ?;', (1, user_id))
         else:
             self.database_client.execute_command('UPDATE users SET track_time_passed = ? WHERE user_id = ?;', (updated_delta, user_id))
 
-    def same_track_data_count(self, track_data: str) -> int:
+    def same_track_data_count(self, track_data: str) -> int:  # TODO: rewrite
         same_count = self.database_client.execute_select_command('SELECT COUNT(*) FROM users WHERE track_data = "%s";' % track_data)
         return int(same_count[0][0]) - 1
 
@@ -196,7 +258,7 @@ class UserActioner:
 
     def get_last_parse_data(self, user_id: int) -> dict:
         """
-        :return: Last uncompleted parse data record.
+        :return: The last uncompleted parse data record.
         """
         raw_data = self.database_client.execute_select_command('SELECT parse_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)
@@ -205,7 +267,7 @@ class UserActioner:
 
     def update_last_parse_data(self, user_id: int, key: str, value: str):
         """
-        Update last uncompleted parse record.
+        Update the last uncompleted parse record.
         """
         raw_data = self.database_client.execute_select_command('SELECT parse_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)
