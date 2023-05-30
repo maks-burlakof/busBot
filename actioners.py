@@ -198,11 +198,13 @@ class UserActioner:
         if key == 'time':  # the last step in a new track record creation
             for dict_record in data[:-1]:
                 if data[-1]['date'] == dict_record['date'] and data[-1]['from'] == dict_record['from'] and \
-                        data[-1]['to'] == dict_record['to'] and value == dict_record['time']:
+                        data[-1]['to'] == dict_record['to'] and value == dict_record['time'] and \
+                        data[-1]['is_active'] == dict_record['is_active']:
                     is_unique = False
                     break
             if is_unique:
                 data[-1][key] = value
+                data[-1]['is_active'] = '1'
             else:
                 data.pop(-1)
         else:

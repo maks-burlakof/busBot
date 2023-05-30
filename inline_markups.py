@@ -109,7 +109,7 @@ class DepartureTimeMarkup:
 class ChangeValueMarkup:
     def __init__(self, prefix: str = 'change_value'):
         self.prefix = prefix
-        self.sep = ':'
+        self.sep = ';'
 
     def add_create(self, action_type: str, total_num: int) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
@@ -119,20 +119,6 @@ class ChangeValueMarkup:
     def remove_create(self, action_type: str, index: int, total_num: int) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton('❌ Отменить', callback_data=self.sep.join([self.prefix, 'RESET', action_type, str(index), str(total_num)])))
-        return keyboard
-
-    def history_create(self, action_type: str, history_elems: list) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        for i in range(len(history_elems)):
-            keyboard.add(InlineKeyboardButton(history_elems[i], callback_data=self.sep.join([self.prefix, 'HISTORY', action_type, str(i), '0'])))
-        return keyboard
-
-    # TODO: DEPRECATED
-    def create(self) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('✅ Изменить', callback_data=self.sep.join([self.prefix, 'CHANGE'])))
-        keyboard.add(InlineKeyboardButton('❌ Отменить', callback_data=self.sep.join([self.prefix, 'RESET'])))
-        keyboard.add(InlineKeyboardButton('↪️ Назад', callback_data=self.sep.join([self.prefix, 'CANCEL'])))
         return keyboard
 
 
@@ -342,7 +328,7 @@ class Calendar:
             )
             return "CANCEL", None
         else:
-            bot.answer_callback_query(callback_query_id=call.id, text="ERROR!")
+            # bot.answer_callback_query(callback_query_id=call.id, text="ERROR!")
             bot.delete_message(
                 chat_id=call.message.chat.id, message_id=call.message.message_id
             )
@@ -354,7 +340,7 @@ class CallbackData:
     Callback data factory
     """
 
-    def __init__(self, prefix, *parts, sep=":"):
+    def __init__(self, prefix, *parts, sep=";"):
         if not isinstance(prefix, str):
             raise TypeError(
                 f"Prefix must be instance of str not {type(prefix).__name__}"
