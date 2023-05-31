@@ -53,8 +53,7 @@ class UserActioner:
                 data = json.loads(raw_data[0][0])
             elif isinstance(raw_data, str):
                 data = json.loads(raw_data)
-            assert isinstance(data, list)
-        except (json.decoder.JSONDecodeError, TypeError, IndexError, AssertionError):
+        except (json.decoder.JSONDecodeError, TypeError, IndexError):
             data = []
         return data
 
@@ -187,31 +186,49 @@ class UserActioner:
         completed_data = self._json_dump(data)
         self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
 
-    def update_last_track_date(self, user_id: int, key: str, value: str):
+    def update_track_date(self, user_id: int, index: int, key: str, value: str):
         """
-        Update last track record.
-        :return: Record creation result.
+        Update the track record by index in array.
+        :return: True if the update was successfully completed.
         """
         raw_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)
         is_unique = True
-        if key == 'time':  # the last step in a new track record creation
+        if index == -1 and key == 'time':  # the last step in a new track record creation
             for dict_record in data[:-1]:
                 if data[-1]['date'] == dict_record['date'] and data[-1]['from'] == dict_record['from'] and \
                         data[-1]['to'] == dict_record['to'] and value == dict_record['time'] and \
-                        data[-1]['is_active'] == dict_record['is_active']:
+                        dict_record['is_active'] == '1':
                     is_unique = False
                     break
             if is_unique:
                 data[-1][key] = value
                 data[-1]['is_active'] = '1'
+                data[-1]['passed'] = 0
             else:
                 data.pop(-1)
         else:
-            data[-1][key] = value
+            data[index][key] = value
         completed_data = self._json_dump(data)
         self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
         return is_unique
+
+    def update_track_date_by_data(self, user_id: int, searched_data: dict, key: str, value) -> bool:
+        """
+        Updates specific track date for user without any checks.
+        Currently used only in Reminder.
+        """
+        raw_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(raw_data)
+        try:
+            index_to_update = data.index(searched_data)
+        except ValueError:
+            return False
+        else:
+            data[index_to_update][key] = value
+            completed_data = self._json_dump(data)
+            self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+            return True
 
     def get_last_track_date(self, user_id: int) -> dict:
         """
@@ -222,18 +239,41 @@ class UserActioner:
         last_record = data[-1]
         return last_record
 
-    def remove_track_date(self, user_id: int, index: int):
+    def get_all_active_track_data(self) -> list:
+        sql_query = "SELECT user_id, chat_id, json_extract(value, '$') AS track_date " \
+                    "FROM users, json_each(users.track_data) " \
+                    "WHERE " \
+                    "track_date IS NOT NULL " \
+                    "AND json_extract(track_date, '$.is_active') = '1' " \
+                    ";"
+        raw_data = self.database_client.execute_select_command(sql_query)
+        data = []
+        for raw_tuple in raw_data:
+            data.append((raw_tuple[0], raw_tuple[1], self._get_json_data(raw_tuple[2])))
+        return data
+
+    def remove_track_date_by_index(self, user_id: int, index: int):
         raw_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)
         data.pop(index)
         completed_data = self._json_dump(data)
         self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
 
-    def update_track_time_passed(self, user_id: int, updated_delta: Union[int, None]):  # TODO: deprecated
-        if updated_delta == -1:
-            self.database_client.execute_command('UPDATE users SET track_time_passed = track_time_passed + ? WHERE user_id = ?;', (1, user_id))
+    def remove_track_date_by_data(self, user_id: int, data_to_remove: dict) -> bool:
+        """
+        :return: Is element was successfully removed.
+        """
+        raw_all_data = self.database_client.execute_select_command('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        all_data = self._get_json_data(raw_all_data)
+        try:
+            index_to_delete = all_data.index(data_to_remove)
+        except ValueError:
+            return False
         else:
-            self.database_client.execute_command('UPDATE users SET track_time_passed = ? WHERE user_id = ?;', (updated_delta, user_id))
+            all_data.pop(index_to_delete)
+            completed_data = self._json_dump(all_data)
+            self.database_client.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+            return True
 
     def same_track_data_count(self, track_data: str) -> int:  # TODO: rewrite
         same_count = self.database_client.execute_select_command('SELECT COUNT(*) FROM users WHERE track_data = "%s";' % track_data)

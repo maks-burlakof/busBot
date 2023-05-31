@@ -47,7 +47,7 @@ class MyBot(telebot.TeleBot):
                 pass
 
 
-telegram_client = TelegramClient(token=TOKEN, base_url="https://api.telegram.org")
+telegram_client = TelegramClient(token=TOKEN)
 user_actioner = UserActioner(SQLiteClient("users.db"))
 parser = SiteParser(user_actioner)
 bot = MyBot(token=TOKEN, telegram_client=telegram_client, user_actioner=user_actioner, parser=parser)
@@ -212,19 +212,18 @@ def callback_inline_change_value(call: CallbackQuery):
         elif action_type == 'TRACK':
             track_data_all = bot.user_actioner.get_user(user_id)[4]
             track_data = [dict_elem for dict_elem in track_data_all if dict_elem['is_active'] == '1']
-            try:
-                index_to_delete = track_data_all.index(track_data[elem_index])
-            except ValueError:
-                bot.send_message(user_id, RECORD_NOT_EXISTS_MSGS, disable_notification=True)
-            else:
-                bot.user_actioner.remove_track_date(user_id, index_to_delete)
-                y, m, d = track_data_all[index_to_delete]['date'].split('-')
+            data_to_remove = track_data[elem_index]
+            is_success = bot.user_actioner.remove_track_date_by_data(user_id, data_to_remove)
+            if is_success:
+                y, m, d = data_to_remove['date'].split('-')
                 deleted_date = date(int(y), int(m), int(d))
                 response = choice(TRACK_RESET_EXISTS_MSGS) + '\n' + TRACK_BUS_TEMPLATE_MSG % (
-                    deleted_date.strftime('%d %B (%a)'), track_data_all[index_to_delete]['from'],
-                    track_data_all[index_to_delete]['to'], track_data_all[index_to_delete]['time'])
+                    deleted_date.strftime('%d %B (%a)'), data_to_remove['from'],
+                    data_to_remove['to'], data_to_remove['time'])
                 bot.send_message(user_id, response, reply_markup=ReplyKeyboardRemove(),
                                  disable_notification=True)
+            else:
+                bot.send_message(user_id, RECORD_NOT_EXISTS_MSGS, disable_notification=True)
             track(message)
 
     bot.delete_messages_safe(call.message.chat.id, ids_list)
@@ -257,10 +256,10 @@ def callback_inline_single_calendar(call: CallbackQuery):
             if (date(int(year), int(month), int(day)) - date.today()).days > TIME_DELTA:
                 bot.send_message(user_id, choice(NO_BUSES_MSGS))
                 return
-            bot.user_actioner.update_last_track_date(user_id, 'date', str(chosen_date))
+            bot.user_actioner.update_track_date(user_id, -1, 'date', str(chosen_date))
             bot.send_message(user_id,
                              f'<b>{TRACK_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
-                             parse_mode='HTML',
+                             parse_mode='HTML', disable_notification=True,
                              reply_markup=city_markup.create_table())
 
         elif call.message.text == PARSE_INPUT_MSG:
@@ -270,7 +269,7 @@ def callback_inline_single_calendar(call: CallbackQuery):
             bot.user_actioner.update_last_parse_data(user_id, 'date', str(chosen_date))
             bot.send_message(user_id,
                              f'<b>{PARSE_INPUT_ROUTE_MSG}</b>' + SELECTED_DATE_MSG % chosen_date.strftime('%d %B %Yг. (%a)'),
-                             parse_mode='HTML',
+                             parse_mode='HTML', disable_notification=True,
                              reply_markup=city_markup.create_table())
 
     elif 'HISTORY_PARSE' in action:
@@ -301,9 +300,9 @@ def callback_inline_single_calendar(call: CallbackQuery):
         except IndexError:
             bot.send_message(user_id, choice(RECORD_NOT_EXISTS_MSGS), disable_notification=True)
         else:
-            bot.user_actioner.update_last_track_date(user_id, 'date', history_record['date'])
-            bot.user_actioner.update_last_track_date(user_id, 'from', history_record['from'])
-            bot.user_actioner.update_last_track_date(user_id, 'to', history_record['to'])
+            bot.user_actioner.update_track_date(user_id, -1, 'date', history_record['date'])
+            bot.user_actioner.update_track_date(user_id, -1, 'from', history_record['from'])
+            bot.user_actioner.update_track_date(user_id, -1, 'to', history_record['to'])
             call_cities = call
             call_cities.data = city_markup.sep.join(
                 [city_markup.prefix, 'SUBMIT', history_record['from'], history_record['to']])
@@ -315,7 +314,7 @@ def callback_inline_single_calendar(call: CallbackQuery):
         if call.message.text == NOTIFY_INPUT_MSG:
             bot.user_actioner.remove_notify_date(user_id, -1)
         elif call.message.text == TRACK_INPUT_DATE_MSG:
-            bot.user_actioner.remove_track_date(user_id, -1)
+            bot.user_actioner.remove_track_date_by_index(user_id, -1)
         elif call.message.text == PARSE_INPUT_MSG:
             bot.user_actioner.remove_parse_date(user_id, -1)
 
@@ -335,8 +334,8 @@ def callback_inline_cities(call: CallbackQuery):
 
         if call.message.text.split('\n')[0] == TRACK_INPUT_ROUTE_MSG:
             track_date = bot.user_actioner.get_last_track_date(user_id)['date']
-            bot.user_actioner.update_last_track_date(user_id, 'from', city_from)
-            bot.user_actioner.update_last_track_date(user_id, 'to', city_to)
+            bot.user_actioner.update_track_date(user_id, -1, 'from', city_from)
+            bot.user_actioner.update_track_date(user_id, -1, 'to', city_to)
             d, m, y = [int(i) for i in track_date.split('-')]
             msg = bot.send_message(user_id, choice(LOADING_MSGS),
                                    reply_markup=ReplyKeyboardRemove(), disable_notification=True)
@@ -365,7 +364,7 @@ def callback_inline_cities(call: CallbackQuery):
                     PARSE_RESPONSE_HEADER_MSG %
                     (city_from, city_to, datetime.strptime(f'{departure_date}', '%Y-%m-%d').strftime('%d %B %Yг. (%a)'))
                     + '\n' + stylized, call.message.chat.id, msg.id, parse_mode='Markdown',
-                    reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date, parser))
+                    reply_markup=buy_ticket_markup.create(bot.parser.prepare_url(city_from, city_to, departure_date)))
             else:
                 bot.edit_message_text(choice(NO_BUSES_MSGS), call.message.chat.id, msg.id)
 
@@ -380,7 +379,7 @@ def callback_inline_departure_time(call: CallbackQuery):
     bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.id)
     departure_date, city_from, city_to = track_data['date'], track_data['from'], track_data['to']
     if 'Нет мест' in free_places:
-        is_unique = bot.user_actioner.update_last_track_date(user_id, 'time', departure_time)
+        is_unique = bot.user_actioner.update_track_date(user_id, -1, 'time', departure_time)
         if is_unique:
             response_msg = choice(NOTIFY_TRACK_SET_MSGS)
             track_data['time'] = departure_time
@@ -395,8 +394,8 @@ def callback_inline_departure_time(call: CallbackQuery):
     else:
         bot.send_message(user_id, choice(TRACK_FREE_PLACES_EXISTS_MSGS),
                          disable_notification=True,
-                         reply_markup=buy_ticket_markup.create(city_from, city_to, departure_date, parser))
-        bot.user_actioner.remove_track_date(call.from_user.id, -1)
+                         reply_markup=buy_ticket_markup.create(bot.parser.prepare_url(city_from, city_to, departure_date)))
+        bot.user_actioner.remove_track_date_by_index(call.from_user.id, -1)
 
 
 @bot.message_handler(commands=["settings"], func=is_allowed_user)

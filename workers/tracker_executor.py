@@ -4,3 +4,5 @@ reminder = Reminder()
 reminder.setup()
 
 reminder.execute_track()
+
+reminder.shutdown()

@@ -22,28 +22,19 @@ TIME_DELTA = 29
 
 # allowed working time for scripts
 MAX_NOTIFY_TIME = 60
-MAX_TRACK_TIME = 40
-
-# site parse frequency, min
-FREQ_1ST = 5
-FREQ_2ND = 10
+MAX_TRACK_TIME = 50
 
 
 class Reminder:
-    GET_NOTIFY_DATE = f'SELECT chat_id, user_id FROM users WHERE (julianday(notify_date) - julianday() < {TIME_DELTA + 1});'
-    GET_TRACK_DATA = 'SELECT chat_id, user_id, track_data, track_time_passed FROM users WHERE track_data NOT NULL;'
-
     def __init__(self):
-        self.telegram_client = TelegramClient(token=TOKEN, base_url="https://api.telegram.org")
+        self.telegram_client = TelegramClient(token=TOKEN)
         self.database_client = SQLiteClient(path[0] + '/../users.db')
         self.user_actioner = UserActioner(database_client=self.database_client)
         self.parser = SiteParser(user_actioner=self.user_actioner)
         self.buy_ticket_markup = BuyTicketMarkup()
-        self.setted_up = False
 
     def setup(self):
         self.database_client.create_conn()
-        self.setted_up = True
 
     def shutdown(self):
         self.database_client.close_conn()
@@ -54,72 +45,76 @@ class Reminder:
         if execution_time > MAX_TRACK_TIME:
             logger.error(f'Script time limit exceeded: {round(execution_time, 1)}')
 
-    def notify(self, notify_ids: list):
-        for chat_id, user_id in notify_ids:
+    def notify(self, data: list):
+        for chat_id, user_id, notify_date in data:
+            y, m, d = notify_date.split('-')
             res = self.telegram_client.post(method="sendMessage", params={
-                "text": NOTIFY_MSG % str((date.today() + timedelta(days=TIME_DELTA)).strftime('%d %B %Yг. (%a)')),
+                "text": NOTIFY_MSG % date(int(y), int(m), int(d)).strftime('%d %B %Yг. (%a)'),
                 "chat_id": chat_id,
                 "parse_mode": 'Markdown'})
-            self.user_actioner.update_last_notify_date(user_id, None, None)  # TODO: incorrect
             logger.info(res)
 
-    def track(self, track_ids: list):
-        for chat_id, user_id, track_data, track_time_passed in track_ids:
-            try:
-                track_date, city_from, city_to, departure_time = track_data.split()
-            except (ValueError, AttributeError):
-                # self.user_actioner.update_track_data(user_id, None)
-                continue
-            track_date_time = datetime.strptime(f'{track_date} {departure_time}', '%Y-%m-%d %H:%M')
-            track_delta = (track_date_time - datetime.today()).days
-            if track_date_time < datetime.today():
-                self.user_actioner.update_track_data(user_id, None)
-                continue
-            if track_delta > 1:
-                if not track_time_passed:
-                    self.user_actioner.update_track_time_passed(user_id, 1)
-                    continue
-                track_freq = FREQ_1ST
-                if track_delta <= 7:
-                    track_freq = FREQ_1ST
-                elif track_delta > 7:
-                    track_freq = FREQ_2ND
+            user_notify_data = self.user_actioner.get_user(user_id)[3]
+            date_index = None
+            for i in range(len(user_notify_data)):
+                if user_notify_data[i]['date'] == notify_date:
+                    date_index = i
+                    break
+            self.user_actioner.remove_notify_date(user_id, date_index)
 
-                if track_time_passed < track_freq:
-                    self.user_actioner.update_track_time_passed(user_id, -1)
+    def track(self, data: list):
+        for user_id, chat_id, track_date in data:
+            track_date_time = datetime.strptime(f"{track_date['date']} {track_date['time']}", '%Y-%m-%d %H:%M')
+            if track_date_time < datetime.today():
+                self.user_actioner.remove_track_date_by_data(user_id, track_date)
+                continue
+            track_delta = (track_date_time - datetime.today()).days
+            if track_delta >= 1:  # not tomorrow
+                if track_delta == 1:  # after one day
+                    track_freq = 3
+                elif track_delta <= 5:
+                    track_freq = 5
+                else:
+                    track_freq = 10
+
+                if track_date['passed'] < track_freq:
+                    self.user_actioner.update_track_date_by_data(user_id, track_date, "passed", track_date['passed'] + 1)
                     continue
                 else:
-                    self.user_actioner.update_track_time_passed(user_id, None)
+                    is_success = self.user_actioner.update_track_date_by_data(user_id, track_date, "passed", 0)
+                    if is_success:
+                        track_date['passed'] = 0
 
-            if self.parser.get_free_seats(city_from, city_to, track_date, departure_time):
+            if self.parser.get_free_seats(track_date['from'], track_date['to'], track_date['date'], track_date['time']):
                 res = self.telegram_client.post(method="sendMessage", params={
-                    "text": TRACK_MSG % (track_date_time.strftime('%d %B %Yг. (%a)'), city_from, city_to, departure_time),
+                    "text": TRACK_MSG % (track_date_time.strftime('%d %B %Yг. (%a)'), track_date['from'], track_date['to'], track_date['time']),
                     "chat_id": chat_id,
                     "parse_mode": 'Markdown',
-                    "reply_markup": self.buy_ticket_markup.create(city_from, city_to, track_date, self.parser).to_json()})
-                self.user_actioner.update_track_data(user_id=user_id, updated_data=None)
+                    "reply_markup": self.buy_ticket_markup.create(self.parser.prepare_url(track_date['from'], track_date['to'], track_date['date'])).to_json()})
+                self.user_actioner.update_track_date_by_data(user_id, track_date, "is_active", "0")
                 logger.info(res)
 
     def execute_notify(self):
-        if not self.setted_up:
-            logger.error("Resources in worker.reminder has not been set up!")
-            return
         # logger.debug('The execute_notify function is called')
+        sql_query = "SELECT chat_id, user_id, json_extract(value, '$.date') AS notify_date " \
+                    "FROM users, json_each(users.notify_data) " \
+                    "WHERE " \
+                    "notify_date IS NOT NULL " \
+                    'AND notify_date != "" ' \
+                    f"AND (julianday(notify_date) - julianday() <= {TIME_DELTA}) " \
+                    ";"
         start_time = time()
-        notify_ids = self.database_client.execute_select_command(self.GET_NOTIFY_DATE)
-        if notify_ids:
-            self.notify(notify_ids)
+        data = self.database_client.execute_select_command(sql_query)
+        if data:
+            self.notify(data)
         end_time = time()
         self.check_working_time(start_time, end_time)
 
     def execute_track(self):
-        if not self.setted_up:
-            logger.error("Resources in worker.reminder has not been set up!")
-            return
         # logger.debug('The execute_track function is called')
         start_time = time()
-        track_ids = self.database_client.execute_select_command(self.GET_TRACK_DATA)
-        if track_ids:
-            self.track(track_ids)
+        data = self.user_actioner.get_all_active_track_data()
+        if data:
+            self.track(data)
         end_time = time()
         self.check_working_time(start_time, end_time)

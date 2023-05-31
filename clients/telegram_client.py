@@ -2,12 +2,11 @@ import requests
 
 
 class TelegramClient:
-    def __init__(self, token: str, base_url: str):
+    def __init__(self, token: str):
         self.token = token
-        self.base_url = base_url
 
     def prepare_url(self, method: str):
-        result_url = f"{self.base_url}/bot{self.token}/"
+        result_url = "https://api.telegram.org/bot{}/".format(self.token)
         if method is not None:
             result_url += method
         return result_url

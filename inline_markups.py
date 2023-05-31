@@ -127,10 +127,9 @@ class BuyTicketMarkup:
         self.prefix = prefix
         self.sep = ':'
 
-    def create(self, city_from: str, city_to: str, departure_date: str, parser: SiteParser) -> InlineKeyboardMarkup:
+    def create(self, url: str) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('💳 Заказать на сайте',
-                                          url=parser.prepare_url(city_from, city_to, departure_date)))
+        keyboard.add(InlineKeyboardButton('💳 Заказать на сайте', url=url))
         return keyboard
 
 
