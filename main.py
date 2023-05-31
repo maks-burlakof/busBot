@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from datetime import date, datetime
 from random import choice, sample
 from string import ascii_letters, digits
@@ -14,6 +15,7 @@ from clients import *
 from actioners import UserActioner
 from inline_markups import CityMarkup, DepartureTimeMarkup, ChangeValueMarkup, BuyTicketMarkup, Calendar, CallbackData
 
+load_dotenv()
 locale.setlocale(locale.LC_ALL, ('ru_RU', 'UTF-8'))
 
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
