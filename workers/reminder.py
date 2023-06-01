@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from logging import getLogger, config
 from datetime import date, timedelta, datetime
 from os import environ
@@ -10,6 +11,8 @@ from clients import *
 from actioners import UserActioner
 from inline_markups import BuyTicketMarkup
 
+load_dotenv()
+
 config.fileConfig(fname='logging_config.conf', disable_existing_loggers=False)
 logger = getLogger(__name__)
 
@@ -17,12 +20,7 @@ locale.setlocale(locale.LC_ALL, ('ru_RU', 'UTF-8'))
 
 TOKEN = environ.get("TOKEN")
 
-# days before the bus
-TIME_DELTA = 29
-
-# allowed working time for scripts
-MAX_NOTIFY_TIME = 60
-MAX_TRACK_TIME = 50
+TIME_DELTA = 29  # days before the bus
 
 
 class Reminder:
@@ -42,7 +40,7 @@ class Reminder:
     @staticmethod
     def check_working_time(start_time: float, end_time: float):
         execution_time = end_time - start_time
-        if execution_time > MAX_TRACK_TIME:
+        if execution_time > 55:
             logger.error(f'Script time limit exceeded: {round(execution_time, 1)}')
 
     def notify(self, data: list):
