@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from datetime import date, datetime
-from random import choice, sample
+from random import choice, sample, randint
 from string import ascii_letters, digits
 from sys import exit
 from os import environ
@@ -110,7 +110,7 @@ def notify(message: Message):
         for i in range(len_data):
             y, m, d = [int(j) for j in notify_data[i]['date'].split('-')]
             notify_date = date(y, m, d)
-            bot.send_message(message.chat.id, '📆 {}'.format(notify_date.strftime('%d %B %Yг. (%a)')),
+            bot.send_message(message.chat.id, NOTIFY_TEMPLATE_MSG % notify_date.strftime('%d %B %Yг. (%a)'),
                              disable_notification=True,
                              reply_markup=change_value_markup.remove_create('NOTIFY', i, len_data))
     else:
@@ -180,26 +180,36 @@ def callback_inline_change_value(call: CallbackQuery):
 
     if action == 'ADD':
         if action_type == 'NOTIFY':
-            bot.user_actioner.add_notify_date(user_id)
-            bot.send_message(call.message.chat.id, NOTIFY_INPUT_MSG,
-                             reply_markup=calendar.create_calendar(name=calendar_callback.prefix),
-                             disable_notification=True)
+            notify_data = bot.user_actioner.get_user(user_id)[3]
+            if len(notify_data) < MAX_BUSES:
+                bot.user_actioner.add_notify_date(user_id)
+                bot.send_message(call.message.chat.id, NOTIFY_INPUT_MSG,
+                                 reply_markup=calendar.create_calendar(name=calendar_callback.prefix),
+                                 disable_notification=True)
+            else:
+                bot.send_message(call.message.chat.id, notify_track_limit_exceeded_msg(MAX_BUSES),
+                                 disable_notification=True)
 
         elif action_type == 'TRACK':
-            bot.user_actioner.add_track_date(user_id)
             track_data = bot.user_actioner.get_user(user_id)[4]
-            markup = calendar.create_calendar(name=calendar_callback.prefix)
-            for dict_elem in track_data:
-                if dict_elem['is_active'] == '0':
-                    y, m, d = dict_elem['date'].split('-')
-                    track_date = date(int(y), int(m), int(d))
-                    if (track_date - date.today()).days <= TIME_DELTA:
-                        pretty_str = '📆 {} {} 👉 {}'.format(track_date.strftime('%d %B (%a)'), dict_elem['from'], dict_elem['to'])
-                        markup.add(InlineKeyboardButton(pretty_str, callback_data=calendar_callback.sep.join(
-                            [calendar_callback.prefix, 'HISTORY_TRACK-{}'.format(track_data.index(dict_elem)),
-                             str(y), str(m), str(d)])))
-            bot.send_message(call.message.chat.id, TRACK_INPUT_DATE_MSG,
-                             reply_markup=markup, disable_notification=True)
+            track_data_active = [dict_elem for dict_elem in track_data if dict_elem['is_active'] == '1']
+            if len(track_data_active) < MAX_BUSES:
+                bot.user_actioner.add_track_date(user_id)
+                markup = calendar.create_calendar(name=calendar_callback.prefix)
+                for dict_elem in track_data:
+                    if dict_elem['is_active'] == '0':
+                        y, m, d = dict_elem['date'].split('-')
+                        track_date = date(int(y), int(m), int(d))
+                        if (track_date - date.today()).days >= 0:
+                            pretty_str = '📆 {} {} 👉 {}'.format(track_date.strftime('%d %B (%a)'), dict_elem['from'], dict_elem['to'])
+                            markup.add(InlineKeyboardButton(pretty_str, callback_data=calendar_callback.sep.join(
+                                [calendar_callback.prefix, 'HISTORY_TRACK-{}'.format(track_data.index(dict_elem)),
+                                 str(y), str(m), str(d)])))
+                bot.send_message(call.message.chat.id, TRACK_INPUT_DATE_MSG,
+                                 reply_markup=markup, disable_notification=True)
+            else:
+                bot.send_message(call.message.chat.id, notify_track_limit_exceeded_msg(MAX_BUSES),
+                                 disable_notification=True)
 
     elif action == 'RESET':
         message = call.message
@@ -418,10 +428,15 @@ def description(message: Message):
     if not is_allowed_user(message, is_silent=True):
         return
     users = bot.user_actioner.get_all_users()
-    user_count = len(users)
-    notify_count = user_count - [user[3] for user in users].count(None)
-    track_count = user_count - [user[4] for user in users].count(None)
-    bot.send_message(message.chat.id, STATISTICS_MSG % (len(users), notify_count, track_count),
+    user_num = len(users)
+    notify_num = 0
+    track_num = 0
+    for user in users:
+        notify_num += len(user[3])
+        for track_dict in user[4]:
+            if track_dict['is_active'] == '1':
+                track_num += 1
+    bot.send_message(message.chat.id, statistics_msg(user_num, notify_num, track_num, randint(1, 4)),
                      parse_mode='Markdown', disable_notification=True)
 
 
@@ -522,12 +537,20 @@ def database_view(message: Message):
     users = bot.user_actioner.get_all_users()
     response = ''
     for user in users:
-        if user[3]:
-            response += f'@{user[1]}\n1️⃣ {user[3]}\n'
-            if user[4]:
-                response += f'2️⃣ {user[4]}\n'
-        elif user[4]:
-            response += f'@{user[1]}\n2️⃣ {user[4]}\n'
+        notify_response = ''
+        track_response = ''
+        for notify_dict in user[3]:
+            notify_date = date(*[int(digit) for digit in notify_dict['date'].split('-')])
+            notify_response += NOTIFY_TEMPLATE_MSG % notify_date.strftime('%d %B %Yг. (%a)') + '\n'
+        for track_dict in user[4]:
+            track_date = date(*[int(digit) for digit in track_dict['date'].split('-')])
+            track_response += '🟢 ' if track_dict['is_active'] == '1' else '❌ '
+            track_response += '%s %s\n%s 👉🏼 %s\n' % (track_date.strftime('%d %B (%a)'), track_dict['time'],
+                                                         track_dict['from'], track_dict['to'])
+        if notify_response or track_response:
+            response += f'@{user[1]}\n'
+            response += '1️⃣ \n' + notify_response if notify_response else ''
+            response += '2️⃣ \n' + track_response if track_response else ''
     bot.send_message(message.chat.id, DATABASE_LIST_MSG + response, parse_mode='HTML', disable_notification=True)
 
 

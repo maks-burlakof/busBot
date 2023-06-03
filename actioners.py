@@ -89,7 +89,10 @@ class UserActioner:
         return user
 
     def get_all_users(self):
-        return self.database_client.execute_select_command('SELECT user_id, username, chat_id, notify_data, track_data FROM users')
+        data = self.database_client.execute_select_command('SELECT user_id FROM users')
+        for i in range(len(data)):
+            data[i] = self.get_user(data[i][0])
+        return data
 
     def add_active_user(self, user_id: str, username: str, chat_id: int):
         empty_list = json.dumps([])
