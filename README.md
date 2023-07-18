@@ -31,31 +31,45 @@ The bot will remind you in Telegram when the selected minibuses are available fo
 
 ## Installation and launch
 
-### Docker
+### 1. Docker
 
 ```bash
 docker build -t bus-bot .
 docker run --name bus-bot-container bus-bot
 ```
 
-### Manually
+### 2. Manually
+
+1. Execute the following code:
 
 ```bash
+git clone https://github.com/maks-burlakof/bus_bot.git
+cd bus_bot/
+
 python3 -m venv venv
 source venv/bin/activate
+
 pip install -r requirements.txt
 sudo apt-get install -y language-pack-ru-base
 # or sudo apt-get install -y locales locales-all
+sudo timedatectl set-timezone Europe/Moscow
+
 nohup python3 main.py &
 ```
 
-The next step is to create a `.env` file and specify *TOKEN* and *ADMIN_CHAT_ID* variables.
+2. Create a `.env` file with this content:
+
+```text
+TOKEN="<token>"
+ADMIN_CHAT_ID="<chat-id>"
+PYTHONPATH=${PROJ_DIR}:${PYTHONPATH}
+```
 
 You can retrieve your Telegram ID in many ways (look up in the google). Copy this value and specify it in the environment variable.
 
 Done! Configuration complete!
 
-### Cron configurations
+3. Configure cron tasks
 
 User notification is implemented using the worker/reminder.py script. Cron is used to automatically run the notifier_executor.py and tracker_executor.py scripts on unix systems.
 
@@ -65,12 +79,14 @@ Check if cron is installed on your system using:
 sudo apt-get install cron
 ```
 
+Edit the `scripts/tracker_executor.sh` and `scripts/notifier_executor.sh` files.
+
 Configure the cron file using:
 
 ```bash
 crontab -e
-0 0 * * * command1
-* * * * * command2
+0 0 * * * /bin/bash /home/user/bus_bot/scripts/notifier_executor.sh
+* * * * * /bin/bash /home/user/bus_bot/scripts/tracker_executor.sh
 ```
 
 ## Project disadvantages
