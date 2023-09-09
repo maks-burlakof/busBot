@@ -12,7 +12,7 @@ class SiteParser:
         key_from = self.city_data.get(city_from)
         key_to = self.city_data.get(city_to)
         passengers = '1'
-        return f'https://route.by/Маршруты/{city_from}/{city_to}?date={date}&passengers={passengers}&from={key_from}&to={key_to}'
+        return f'https://v-minsk.com/Маршруты/{city_from}/{city_to}?date={date}&passengers={passengers}&from={key_from}&to={key_to}'
 
     def parse(self, city_from: str, city_to: str, date: str):
         url = self.prepare_url(city_from, city_to, date)

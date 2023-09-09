@@ -99,7 +99,7 @@ class Reminder:
                     "WHERE " \
                     "notify_date IS NOT NULL " \
                     'AND notify_date != "" ' \
-                    f"AND (julianday(notify_date) - julianday() <= {TIME_DELTA + 1}) " \
+                    f"AND (julianday(notify_date) - julianday() <= {TIME_DELTA}) " \
                     ";"
         start_time = time()
         data = self.database_client.execute_select_command(sql_query)
