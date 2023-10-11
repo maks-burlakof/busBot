@@ -1,13 +1,9 @@
-from random import choice
-from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-
-from actions.base import Action
-from message_texts import *
+from actions.base import *
 
 
-class NotifyMarkups:
+class NotifyMarkups(BaseMarkup):
     def __init__(self):
-        self.sep = ';'
+        super().__init__()
         self.prefix = 'NOTIFY'
 
     def add(self, total_num: int) -> InlineKeyboardMarkup:
@@ -21,55 +17,99 @@ class NotifyMarkups:
         return keyboard
 
 
-class Notify(Action):
-    def __init__(self, bot, calendar_markup, calendar_callback):
-        super().__init__(bot, calendar_markup, calendar_callback)
+class Notify(BaseAction):
+    def __init__(self, bot):
+        super().__init__(bot)
         self.markups = NotifyMarkups()
-
         self.max_dates = 3
 
-    def _get_data(self, user_id: int):
-        user = self.bot.db.get_user(user_id)
-        if user:
-            return user[3]
-        else:
-            return None
-
-    def notify(self, message: Message):
+    def start(self, message: Message):
         user_id = message.from_user.id
         chat_id = message.chat.id
-
-        notify_data = self._get_data(user_id)
+        notify_data = self.bot.db.user_get(user_id)['notify']
 
         if notify_data:
             len_data = len(notify_data)
             markup = self.markups.add(len_data) if len_data < self.max_dates else None
-            self.bot.send_message(chat_id, NOTIFY_EXISTS_MSG, reply_markup=markup, parse_mode='Markdown')
+            self.bot.send_message(
+                chat_id,
+                self.bot.m('notify_start_header'),
+                reply_markup=markup,
+                parse_mode='Markdown'
+            )
             for i in range(len_data):
                 notify_date = self._get_date_obj(notify_data[i]['date'])
-                self.bot.send_message_quit(chat_id, NOTIFY_TEMPLATE_MSG % notify_date.strftime('%d %B %Yг. (%a)'),
-                                           reply_markup=self.markups.remove(i, len_data))
+                self.bot.send_message_quiet(
+                    chat_id,
+                    self.bot.m('notify_template') % notify_date.strftime('%d %B %Yг. (%a)'),
+                    reply_markup=self.markups.remove(i, len_data)
+                )
         else:
-            self.bot.db.add_notify_date(user_id)
-            self.bot.send_message(chat_id, NOTIFY_INPUT_MSG,
-                                  reply_markup=self.calendar.create_calendar(name=self.calendar_callback.prefix))
+            self.bot.temp[user_id] = {
+                'action': 'notify',
+                'date': None,
+            }
+            self.bot.send_message(
+                chat_id,
+                self.bot.m('notify_request_date'),
+                reply_markup=self.markups.calendar()
+            )
 
-    def add(self, call: CallbackQuery):
+    def callback(self, call: CallbackQuery):
+        callback_data = call.data.split(self.markups.sep)
+        action = callback_data[1]
+        index = int(callback_data[2])
+        total_num = int(callback_data[3])
+
+        if action == 'ADD':
+            self._add(call)
+
+        elif action == 'REMOVE':
+            self._delete(call, index)
+
+            msg = call.message
+            msg.from_user = call.from_user
+            self.start(msg)
+
+        ids_list = [
+            *range(call.message.id - index - 1, call.message.id),
+            *range(call.message.id, call.message.id + total_num - index)
+        ]
+        self.bot.delete_messages_safe(call.message.chat.id, ids_list)
+
+    def _add(self, call: CallbackQuery):
         user_id = call.from_user.id
         chat_id = call.message.chat.id
-
-        notify_data = self._get_data(user_id)
+        notify_data = self.bot.db.user_get(user_id)['notify']
 
         if len(notify_data) < self.max_dates:
-            self.bot.db.add_notify_date(user_id)
-            self.bot.send_message_quit(chat_id, NOTIFY_INPUT_MSG,
-                                       reply_markup=self.calendar.create_calendar(name=self.calendar_callback.prefix))
+            self.bot.temp[user_id] = {
+                'action': 'notify',
+                'date': None,
+            }
+            self.bot.send_message_quiet(
+                chat_id,
+                self.bot.m('notify_request_date'),
+                reply_markup=self.markups.calendar()
+            )
         else:
-            self.bot.send_message_quit(chat_id, notify_track_limit_exceeded_msg(self.max_dates))
+            self.bot.send_message_quiet(chat_id, self.bot.m('notify_exceeded')(self.max_dates))
 
-    def remove(self, call: CallbackQuery, index: int):
+    def _delete(self, call: CallbackQuery, index: int):
         user_id = call.from_user.id
         chat_id = call.message.chat.id
 
-        self.bot.db.remove_notify_date(user_id, index)
-        self.bot.send_message_quit(chat_id, choice(NOTIFY_RESET_EXISTS_MSGS))
+        self.bot.db.notify_delete(user_id, index)
+        self.bot.send_message_quiet(chat_id, self.bot.m('notify_delete_success'))
+
+
+
+
+
+
+
+
+
+
+
+

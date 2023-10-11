@@ -1,136 +1,8 @@
 import datetime
 import calendar
-import json
 import typing
-from dataclasses import dataclass
 from telebot import TeleBot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-
-from clients import SiteParser
-
-@dataclass
-class Language:
-    days: tuple
-    months: tuple
-
-
-ENGLISH_LANGUAGE = Language(
-    days=("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"),
-    months=(
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ),
-)
-
-RUSSIAN_LANGUAGE = Language(
-    days=("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"),
-    months=(
-        "Январь ❄️",
-        "Февраль 🌨",
-        "Март 🌤",
-        "Апрель ☀️",
-        "Май 🏖",
-        "Июнь 🌴",
-        "Июль 🌞",
-        "Август ⛱",
-        "Сентябрь 🍁",
-        "Октябрь 🍃",
-        "Ноябрь 🌧",
-        "Декабрь 🎄",
-    ),
-)
-
-
-class CityMarkup:
-    """
-    City Inline Markup data factory.
-    """
-
-    def __init__(self, user_actioner, prefix: str = 'city_markup'):
-        self.prefix = prefix
-        self.sep = ':'
-        user_actioner.setup()
-        self.city_data = user_actioner.get_city_data()
-        user_actioner.shutdown()
-
-    def create_table(self, city_from: str = '', city_to: str = '') -> InlineKeyboardMarkup:
-        """
-        Create a built-in inline table with cities to choose destination and departure.
-        :return: InlineKeyboardMarkup object with a table.
-        """
-
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('Отправление:',
-                                          callback_data=self.sep.join([self.prefix, 'IGNORE', city_from, city_to])),
-                     InlineKeyboardButton('Прибытие:',
-                                          callback_data=self.sep.join([self.prefix, 'IGNORE', city_from, city_to])))
-        for city in self.city_data:
-            keyboard.add(InlineKeyboardButton(
-                city if city != city_from else city + ' 👈',
-                callback_data=self.sep.join([self.prefix, 'SET' if city != city_from and city != city_to else 'IGNORE',
-                                             city, city_to])),
-                         InlineKeyboardButton(
-                city if city != city_to else '👉 ' + city,
-                callback_data=self.sep.join([self.prefix, 'SET' if city != city_to and city != city_from else 'IGNORE',
-                                             city_from, city])))
-        if city_from and city_to:
-            keyboard.add(InlineKeyboardButton('Готово!',
-                                              callback_data=self.sep.join([self.prefix, 'SUBMIT', city_from, city_to])))
-        return keyboard
-
-
-class DepartureTimeMarkup:
-    def __init__(self, parser: SiteParser, prefix: str = 'departure_time'):
-        self.prefix = prefix
-        self.parser = parser
-        self.sep = ';'
-
-    def create_list(self, city_from: str, city_to: str, date: str) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        data = self.parser.parse(city_from, city_to, date)
-        for bus in data:
-            time = data[bus]['departure_time']
-            free_places = data[bus]['free_places_info']
-            keyboard.add(InlineKeyboardButton(f"{time} ({free_places})",
-                                              callback_data=self.sep.join([self.prefix, time, free_places])))
-        return keyboard
-
-
-class ChangeValueMarkup:
-    def __init__(self, prefix: str = 'change_value'):
-        self.prefix = prefix
-        self.sep = ';'
-
-    def add_create(self, action_type: str, total_num: int) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('✅ Добавить', callback_data=self.sep.join([self.prefix, 'ADD', action_type, '-1', str(total_num)])))
-        return keyboard
-
-    def remove_create(self, action_type: str, index: int, total_num: int) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('❌ Отменить', callback_data=self.sep.join([self.prefix, 'RESET', action_type, str(index), str(total_num)])))
-        return keyboard
-
-
-class BuyTicketMarkup:
-    def __init__(self, prefix: str = 'buy_ticket'):
-        self.prefix = prefix
-        self.sep = ':'
-
-    def create(self, url: str) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('💳 Заказать на сайте', url=url))
-        return keyboard
 
 
 class Calendar:
@@ -138,14 +10,26 @@ class Calendar:
     Calendar data factory
     """
 
-    __lang: Language
-
-    def __init__(self, language: Language = RUSSIAN_LANGUAGE):
-        self.__lang = language
+    def __init__(self):
+        self.__days = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+        self.__months = (
+            "Январь ❄️",
+            "Февраль 🌨",
+            "Март 🌤",
+            "Апрель ☀️",
+            "Май 🏖",
+            "Июнь 🌴",
+            "Июль 🌞",
+            "Август ⛱",
+            "Сентябрь 🍁",
+            "Октябрь 🍃",
+            "Ноябрь 🌧",
+            "Декабрь 🎄",
+        )
 
     def create_calendar(self, name: str = "calendar", year: int = None, month: int = None) -> InlineKeyboardMarkup:
         """
-        Create a built in inline keyboard with calendar
+        Create a built-in inline keyboard with calendar
 
         :param name:
         :param year: Year to use in the calendar if you are not using the current year.
@@ -166,19 +50,15 @@ class Calendar:
 
         keyboard = InlineKeyboardMarkup(row_width=7)
 
-        keyboard.add(
-            InlineKeyboardButton(
-                self.__lang.months[month - 1] + " " + str(year),
-                callback_data=data_months,
-            )
-        )
+        keyboard.add(InlineKeyboardButton(
+            self.__months[month - 1] + " " + str(year),
+            callback_data=data_months,
+            ))
 
-        keyboard.add(
-            *[
-                InlineKeyboardButton(day, callback_data=data_ignore)
-                for day in self.__lang.days
-            ]
-        )
+        keyboard.add(*[
+            InlineKeyboardButton(day, callback_data=data_ignore)
+            for day in self.__days
+        ])
 
         for week in calendar.monthcalendar(year, month):
             row = list()
@@ -228,7 +108,7 @@ class Calendar:
         keyboard = InlineKeyboardMarkup()
 
         for i, month in enumerate(
-            zip(self.__lang.months[0::2], self.__lang.months[1::2])
+            zip(self.__months[0::2], self.__months[1::2])
         ):
             keyboard.add(
                 InlineKeyboardButton(

@@ -1,7 +1,7 @@
 import sqlite3
 
 
-class SQLiteClient:
+class DatabaseClient:
     def __init__(self, filepath: str):
         self.filepath = filepath
         self.conn = None
