@@ -1,7 +1,7 @@
 from telebot.types import Message, CallbackQuery
 
 from botclass import MyBot
-from actions import Generic, Notify
+from actions import Generic, Notify, Track, Parse
 
 
 def initialize(bot: MyBot):
@@ -91,6 +91,17 @@ def initialize(bot: MyBot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith(notify.markups.prefix))
     def notify_callback(call: CallbackQuery):
         notify.callback(call)
+
+    # Track
+    track = Track(bot)
+
+    @bot.message_handler(commands=['track'], func=generic.is_allowed_user)
+    def track_start(message: Message):
+        track.start(message)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith(track.markups.prefix))
+    def track_callback(call: CallbackQuery):
+        track.callback(call)
 
     # Unknown command
     @bot.message_handler()

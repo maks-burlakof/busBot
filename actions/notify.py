@@ -5,16 +5,7 @@ class NotifyMarkups(BaseMarkup):
     def __init__(self):
         super().__init__()
         self.prefix = 'NOTIFY'
-
-    def add(self, total_num: int) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('✅ Добавить', callback_data=self.sep.join([self.prefix, 'ADD', '-1', str(total_num)])))
-        return keyboard
-
-    def remove(self, index: int, total_num: int) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('❌ Отменить', callback_data=self.sep.join([self.prefix, 'REMOVE', str(index), str(total_num)])))
-        return keyboard
+        self.prefix_calendar = 'NOTIFY-CALENDAR'
 
 
 class Notify(BaseAction):
@@ -22,6 +13,9 @@ class Notify(BaseAction):
         super().__init__(bot)
         self.markups = NotifyMarkups()
         self.max_dates = 3
+        self.db_scheme = {
+            'date': '',
+        }
 
     def start(self, message: Message):
         user_id = message.from_user.id
@@ -30,11 +24,10 @@ class Notify(BaseAction):
 
         if notify_data:
             len_data = len(notify_data)
-            markup = self.markups.add(len_data) if len_data < self.max_dates else None
             self.bot.send_message(
                 chat_id,
                 self.bot.m('notify_start_header'),
-                reply_markup=markup,
+                reply_markup=self.markups.add(len_data) if len_data < self.max_dates else None,
                 parse_mode='Markdown'
             )
             for i in range(len_data):
@@ -42,65 +35,72 @@ class Notify(BaseAction):
                 self.bot.send_message_quiet(
                     chat_id,
                     self.bot.m('notify_template') % notify_date.strftime('%d %B %Yг. (%a)'),
-                    reply_markup=self.markups.remove(i, len_data)
+                    reply_markup=self.markups.delete(i, len_data)
                 )
         else:
-            self.bot.temp[user_id] = {
-                'action': 'notify',
-                'date': None,
-            }
-            self.bot.send_message(
-                chat_id,
-                self.bot.m('notify_request_date'),
-                reply_markup=self.markups.calendar()
-            )
+            self._add(user_id, chat_id, notify_data)
 
     def callback(self, call: CallbackQuery):
         callback_data = call.data.split(self.markups.sep)
         action = callback_data[1]
-        index = int(callback_data[2])
-        total_num = int(callback_data[3])
 
-        if action == 'ADD':
-            self._add(call)
-
-        elif action == 'REMOVE':
-            self._delete(call, index)
-
-            msg = call.message
-            msg.from_user = call.from_user
-            self.start(msg)
-
-        ids_list = [
-            *range(call.message.id - index - 1, call.message.id),
-            *range(call.message.id, call.message.id + total_num - index)
-        ]
-        self.bot.delete_messages_safe(call.message.chat.id, ids_list)
-
-    def _add(self, call: CallbackQuery):
         user_id = call.from_user.id
         chat_id = call.message.chat.id
         notify_data = self.bot.db.user_get(user_id)['notify']
 
+        if callback_data[0] == self.markups.prefix_calendar:
+            chosen_date = self.markups.calendar_handler(self.bot, call, callback_data)
+            if action == 'DAY':
+                self._date_select(call, user_id, chat_id, notify_data, chosen_date)
+
+        if action == 'ADD':
+            self._add(user_id, chat_id, notify_data)
+            self._start_delete_msgs(call, callback_data)
+
+        elif action == 'DELETE':
+            index = int(callback_data[2])
+            self._delete(call, user_id, chat_id, index)
+            self._start_delete_msgs(call, callback_data)
+
+        elif action == 'CANCEL':
+            self.bot.send_message_quiet(user_id, self.bot.m('cancel'))
+
+    def _add(self, user_id: int, chat_id: int, notify_data: list):
         if len(notify_data) < self.max_dates:
-            self.bot.temp[user_id] = {
-                'action': 'notify',
-                'date': None,
-            }
-            self.bot.send_message_quiet(
-                chat_id,
-                self.bot.m('notify_request_date'),
-                reply_markup=self.markups.calendar()
-            )
+            self.bot.send_message_quiet(chat_id, self.bot.m('notify_request_date'), reply_markup=self.markups.calendar_create())
         else:
             self.bot.send_message_quiet(chat_id, self.bot.m('notify_exceeded')(self.max_dates))
 
-    def _delete(self, call: CallbackQuery, index: int):
-        user_id = call.from_user.id
-        chat_id = call.message.chat.id
-
+    def _delete(self, call: CallbackQuery, user_id: int, chat_id: int, index: int):
         self.bot.db.notify_delete(user_id, index)
         self.bot.send_message_quiet(chat_id, self.bot.m('notify_delete_success'))
+
+        msg = call.message
+        msg.from_user = call.from_user
+        self.start(msg)
+
+    def _date_select(self, call: CallbackQuery, user_id: int, chat_id: int, notify_data: list, chosen_date: date):
+        if (chosen_date - date.today()).days <= self.bot.time_delta:
+            self.bot.send_message_quiet(chat_id, self.bot.m('notify_exist_date'))
+            return
+        if str(chosen_date) in [dict_data['date'] for dict_data in notify_data]:
+            self.bot.send_message_quiet(chat_id, self.bot.m('notify_exist'))  # TODO: Remove unnecessarily ReplyKeyboardRemove
+            return
+
+        json_data = self.db_scheme
+        json_data.update({
+            'date': str(chosen_date),
+        })
+        self.bot.db.notify_update(user_id, notify_data + [json_data])
+
+        self.bot.send_message_quiet(chat_id, self.bot.m('action_set'))
+        self.bot.log.info(f"Set new notify date: {chosen_date}. By {call.from_user.full_name} @{call.from_user.username}")
+
+        msg = call.message
+        msg.from_user = call.from_user
+        self.start(msg)
+
+
 
 
 

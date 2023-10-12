@@ -1,5 +1,7 @@
 from random import choice
 import telebot
+
+from workers.reminder import TIME_DELTA
 from clients import TelegramClient
 from database import DatabaseActions
 
@@ -14,6 +16,7 @@ class MyBot(telebot.TeleBot):
         self.temp = {}
 
         self.admin_chat_id = int(admin_chat_id)
+        self.time_delta = TIME_DELTA
         self._m = messages
 
     def setup(self):

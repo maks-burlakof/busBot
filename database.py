@@ -115,6 +115,10 @@ class DatabaseActions:
 
     # Notify
 
+    def notify_update(self, user_id: int, notify_data: list):
+        completed_data = self._json_dump(notify_data)
+        self.engine.execute_command('UPDATE users SET notify_data = ? WHERE user_id = ?;', (completed_data, user_id))
+
     def notify_delete(self, user_id: int, index: int):
         raw_data = self.engine.execute_select_command('SELECT notify_data FROM users WHERE user_id = %s;' % user_id)
         data = self._get_json_data(raw_data)

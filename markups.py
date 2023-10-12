@@ -10,7 +10,7 @@ class Calendar:
     Calendar data factory
     """
 
-    def __init__(self):
+    def __init__(self, sep):
         self.__days = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
         self.__months = (
             "Январь ❄️",
@@ -26,6 +26,7 @@ class Calendar:
             "Ноябрь 🌧",
             "Декабрь 🎄",
         )
+        self.sep = sep
 
     def create_calendar(self, name: str = "calendar", year: int = None, month: int = None) -> InlineKeyboardMarkup:
         """
@@ -44,7 +45,7 @@ class Calendar:
         if month is None:
             month = now_day.month
 
-        calendar_callback = CallbackData(name, "action", "year", "month", "day")
+        calendar_callback = CallbackData(name, "action", "year", "month", "day", sep=self.sep)
         data_ignore = calendar_callback.new("IGNORE", year, month, "!")
         data_months = calendar_callback.new("MONTHS", year, month, "!")
 
@@ -103,7 +104,7 @@ class Calendar:
         if year is None:
             year = datetime.datetime.now().year
 
-        calendar_callback = CallbackData(name, "action", "year", "month", "day")
+        calendar_callback = CallbackData(name, "action", "year", "month", "day", sep=self.sep)
 
         keyboard = InlineKeyboardMarkup()
 
