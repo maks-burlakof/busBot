@@ -40,7 +40,7 @@ class Generic(BaseAction):
                 self.bot.log.info(f'Invite code used by {msg.from_user.full_name} @{msg.from_user.username} id:{msg.from_user.id}; {code}')
                 self.bot.send_message(
                     self.bot.admin_chat_id,
-                    f'#INFO {msg.from_user.full_name} @{msg.from_user.username} использовал пригласительный код'
+                    f'#info {msg.from_user.full_name} @{msg.from_user.username} использовал пригласительный код'
                 )
                 self.bot.send_message_quiet(msg.chat.id, self.bot.m('register_correct'))
                 self.start(msg)
@@ -88,7 +88,7 @@ class Generic(BaseAction):
                 self.bot.send_message_quiet(msg.chat.id, self.bot.m('cancel'))
                 return
             self.bot.reply_to(msg, self.bot.m('feedback_confirm'), disable_notification=True)
-            send_markup = ReplyKeyboardMarkup()
+            send_markup = ReplyKeyboardMarkup(resize_keyboard=False, one_time_keyboard=True)
             send_markup.row(KeyboardButton('📩 Да, отправить!'), KeyboardButton('🫣 Ой, я передумал'))
             self.bot.send_message_quiet(
                 msg.chat.id,
@@ -101,7 +101,7 @@ class Generic(BaseAction):
             if 'отправить' in msg.text.lower():
                 self.bot.send_message(
                     self.bot.admin_chat_id,
-                    '#INFO:' + self.bot.m('feedback_admin') % (msg.from_user.full_name, feedback_text)
+                    '#info:' + self.bot.m('feedback_admin') % (msg.from_user.full_name, feedback_text)
                 )
                 self.bot.send_message_quiet(
                     msg.chat.id,
@@ -241,7 +241,7 @@ class Generic(BaseAction):
         )
         self.bot.send_message(
             self.bot.admin_chat_id,
-            f'#INFO: {message.from_user.full_name} @{message.from_user.username} отправил /secret'
+            f'#info: {message.from_user.full_name} @{message.from_user.username} отправил /secret'
         )
 
     def exit_bot(self, message: Message):

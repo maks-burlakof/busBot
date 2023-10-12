@@ -119,10 +119,8 @@ class DatabaseActions:
         completed_data = self._json_dump(notify_data)
         self.engine.execute_command('UPDATE users SET notify_data = ? WHERE user_id = ?;', (completed_data, user_id))
 
-    def notify_delete(self, user_id: int, index: int):
-        raw_data = self.engine.execute_select_command('SELECT notify_data FROM users WHERE user_id = %s;' % user_id)
-        data = self._get_json_data(raw_data)
-        data.pop(index)
-        completed_data = self._json_dump(data)
-        self.engine.execute_command('UPDATE users SET notify_data = ? WHERE user_id = ?;', (completed_data, user_id))
+    # Track
 
+    def track_update(self, user_id: int, track_data: list):
+        completed_data = self._json_dump(track_data)
+        self.engine.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))

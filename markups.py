@@ -153,7 +153,6 @@ class Calendar:
 
         current = datetime.datetime(int(year), int(month), 1)
         if action == "IGNORE":
-            bot.answer_callback_query(callback_query_id=call.id)
             return False, None
         elif action == "DAY":
             bot.delete_message(
@@ -208,7 +207,6 @@ class Calendar:
             )
             return "CANCEL", None
         else:
-            # bot.answer_callback_query(callback_query_id=call.id, text="ERROR!")
             bot.delete_message(
                 chat_id=call.message.chat.id, message_id=call.message.message_id
             )

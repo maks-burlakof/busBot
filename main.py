@@ -28,7 +28,10 @@ logger = getLogger(__name__)
 
 # Bot
 database_actions = DatabaseActions(database_client=database_client)
-bot = MyBot(token=TOKEN, telegram_client=telegram_client, database_actions=database_actions, logger=logger, admin_chat_id=ADMIN_CHAT_ID, messages=MESSAGES)
+bot = MyBot(
+    token=TOKEN, telegram_client=telegram_client, parser_client=parser_client, database_actions=database_actions,
+    logger=logger, admin_chat_id=ADMIN_CHAT_ID, messages=MESSAGES
+)
 initialize(bot)
 
 if __name__ == '__main__':
@@ -41,6 +44,6 @@ if __name__ == '__main__':
         except Exception as err:
             bot.tg.post(
                 method="sendMessage",
-                params={'text': f'#Error {err.__class__}\n{err}', 'chat_id': bot.admin_chat_id})
+                params={'text': f'#error {err.__class__}\n{err}', 'chat_id': bot.admin_chat_id})
             bot.log.error(f"{err.__class__} - {err}")
             bot.shutdown()
