@@ -53,6 +53,16 @@ class Generic(BaseAction):
         self.bot.send_message(message.chat.id, self.bot.m('register_request'))
         self.bot.register_next_step_handler(message, register_handle_confirmation)
 
+    def settings(self, message: Message):
+        # Set commands for administrator
+        self.bot.set_my_commands(
+            self.bot.get_my_commands() + [
+                BotCommand('database', 'База данных')
+            ],
+            BotCommandScopeChat(chat_id=self.bot.admin_chat_id),
+        )
+        self.bot.send_message_quiet(message.chat.id, self.bot.m('updated'))
+
     def extra(self, message: Message):
         self.bot.send_message_quiet(
             message.chat.id,

@@ -1,6 +1,6 @@
 from datetime import date
 from telebot.types import (Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup,
-                           InlineKeyboardButton, CallbackQuery)
+                           InlineKeyboardButton, CallbackQuery, BotCommand, BotCommandScopeChat)
 
 from botclass import MyBot
 from markups import Calendar
@@ -33,11 +33,18 @@ class BaseMarkup:
         )
         return keyboard
 
-    def delete(self, index: int, total_num: int) -> InlineKeyboardMarkup:
+    def delete_update(self, index: int, total_num: int, date_: str, from_: str = '',
+                      to_: str = '', time_: str = '') -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton(
-            '❌ Отменить',
-            callback_data=self.sep.join([self.prefix, 'DEL', str(index), str(total_num)]))
+        keyboard.add(
+            InlineKeyboardButton(
+                '❌ Отменить',
+                callback_data=self.sep.join([self.prefix, 'DEL', str(index), str(total_num), date_, from_, to_, time_])
+            ),
+            InlineKeyboardButton(
+                '🔄',
+                callback_data=self.sep.join([self.prefix, 'UPD', str(index), str(total_num), date_, from_, to_, time_])
+            ),
         )
         return keyboard
 
@@ -112,7 +119,11 @@ class BaseAction:
             return True
         else:
             if not is_silent:
-                self.bot.send_message_quiet(message.chat.id, self.bot.m('not_allowed') + self.bot.m('not_allowed_base'))
+                if message.text == '/start':
+                    self.bot.send_sticker(message.chat.id, self.bot.m('start_anonymous_user_sticker'))
+                    self.bot.send_message(message.chat.id, self.bot.m('start_anonymous_user') + self.bot.m('not_allowed_base'))
+                else:
+                    self.bot.send_message_quiet(message.chat.id, self.bot.m('not_allowed') + self.bot.m('not_allowed_base'))
             return False
 
     def is_admin(self, message: Message):
@@ -153,9 +164,11 @@ class BaseAction:
             self._start_delete_msgs(call, callback_data)
 
         elif action == 'DEL':
-            index = int(callback_data[2])
-            self._delete(call, user_id, chat_id, index)
+            self._delete(call, user_id, chat_id, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
             self._start_delete_msgs(call, callback_data)
+
+        elif action == 'UPD':
+            self._update(call, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
 
         if name == self.markups.prefix_calendar:
             chosen_date = self.markups.calendar_handler(self.bot, call, callback_data)
@@ -174,6 +187,9 @@ class BaseAction:
         pass
 
     def _delete(self, *args, **kwargs):
+        pass
+
+    def _update(self, *args, **kwargs):
         pass
 
     def _date_select(self, *args, **kwargs):

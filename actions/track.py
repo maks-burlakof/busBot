@@ -31,6 +31,16 @@ class Track(BaseAction):
             'is_active': '',
         }
 
+    @staticmethod
+    def _find_track_in_data(track_data: list, date_: str, from_: str, to_: str, time_: str, is_active: int):
+        for i in range(len(track_data)):
+            if (date_, from_, to_, time_, is_active) == (
+                    track_data[i]['date'], track_data[i]['from'], track_data[i]['to'],
+                    track_data[i]['time'], track_data[i]['is_active']
+            ):
+                return i
+        return None
+
     def start(self, message: Message):
         user_id = message.from_user.id
         chat_id = message.chat.id
@@ -47,15 +57,16 @@ class Track(BaseAction):
             )
             for i in range(len_data):
                 track_date = self._get_date_obj(track_data_active[i]['date'])
+                track_from, track_to, track_time = track_data[i]['from'], track_data[i]['to'], track_data[i]['time']
                 same_count = 0  # TODO: bot.db.same_track_data_count()
                 self.bot.send_message_quiet(
                     chat_id,
                     self.bot.m('track_template') % (
-                        track_date.strftime('%d %B (%a)'), track_data[i]['from'], track_data[i]['to'], track_data[i]['time']
+                        track_date.strftime('%d %B (%a)'), track_from, track_to, track_time
                     ) + (
                         self.bot.m('track_other_people')(same_count) if same_count > 0 else ''
                     ),
-                    reply_markup=self.markups.delete(i, len_data)
+                    reply_markup=self.markups.delete_update(i, len_data, str(track_date), track_from, track_to, track_time)
                 )
         else:
             self._add(user_id, chat_id)
@@ -63,7 +74,7 @@ class Track(BaseAction):
     def callback(self, call: CallbackQuery):
         self._callback(call)
 
-    def _add(self, user_id: int, chat_id: int):
+    def _add(self, user_id: int, chat_id: int):  # TODO: удалить старые записи track с is_active = 0
         track_data = self.bot.db.user_get(user_id)['track']
         track_data_active = [dict_elem for dict_elem in track_data if dict_elem['is_active']]
         if len(track_data_active) < self.max_tracks:
@@ -82,15 +93,12 @@ class Track(BaseAction):
         else:
             self.bot.send_message_quiet(chat_id, self.bot.m('track_exceeded')(self.max_tracks))
 
-    def _delete(self, call: CallbackQuery, user_id: int, chat_id: int, index: int):
+    def _delete(self, call: CallbackQuery, user_id: int, chat_id: int, date_, from_, to_, time_):
         track_data = self.bot.db.user_get(user_id)['track']
-        track_data_active = [dict_elem for dict_elem in track_data if dict_elem['is_active']]
-        data_to_remove = track_data_active[index]
-        try:
-            index = track_data.index(data_to_remove)
-        except ValueError:
-            self.bot.send_message_quiet(chat_id, self.bot.m('no_records'))
-        else:
+        index = self._find_track_in_data(track_data, date_, from_, to_, time_, 1)
+
+        if index != None:
+            data_to_remove = track_data[index]
             track_data.pop(index)
             self.bot.db.track_update(user_id, track_data)
             deleted_date = self._get_date_obj(data_to_remove['date'])
@@ -100,9 +108,25 @@ class Track(BaseAction):
                     deleted_date.strftime('%d %B (%a)'), data_to_remove['from'],
                     data_to_remove['to'], data_to_remove['time'])
             )
+        else:
+            self.bot.send_message_quiet(chat_id, self.bot.m('no_records'))
+
         msg = call.message
         msg.from_user = call.from_user
         self.start(msg)
+
+    def _update(self, call: CallbackQuery, date_: str, from_: str, to_: str, time_: str):
+        free_seats = self.bot.parser.get_free_seats(from_, to_, date_, time_)
+        if free_seats:
+            self.bot.answer_callback_query(
+                call.id,
+                '✅\n\n' + self.bot.m('track_notification') % (
+                    self._get_date_obj(date_).strftime('%d %B %Yг. (%a)'), from_, to_, time_
+                ),
+                show_alert=True,
+            )
+        else:
+            self.bot.answer_callback_query(call.id, '❌\n\n' + self.bot.m('track_no_seats'), show_alert=True)
 
     def _date_select(self, call: CallbackQuery, user_id: int, chat_id: int, chosen_date: date):
         if (chosen_date - date.today()).days > self.bot.time_delta:
@@ -142,7 +166,7 @@ class Track(BaseAction):
         track_data = self.bot.db.user_get(user_id)['track']
 
         if 'Нет мест' in free_places:
-            if [str(chosen_date), city_from, city_to, departure_time] not in [(data['date'], data['from'], data['to'], data['time']) for data in track_data]:
+            if self._find_track_in_data(track_data, str(chosen_date), city_from, city_to, departure_time, 1) == None:
                 json_data = self.db_scheme
                 json_data.update({
                     'date': str(chosen_date),
@@ -165,7 +189,7 @@ class Track(BaseAction):
         else:
             self.bot.send_message_quiet(
                 chat_id,
-                self.bot.m('track_exist_places'),
+                self.bot.m('track_exist_seats'),
                 reply_markup=self.markups.buy_ticket(self.bot.parser.prepare_url(city_from, city_to, str(chosen_date)))
             )
 

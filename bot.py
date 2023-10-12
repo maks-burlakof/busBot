@@ -19,7 +19,7 @@ def initialize(bot: MyBot):
 
     @bot.message_handler(commands=['settings'], func=generic.is_allowed_user)
     def settings(message: Message):
-        bot.send_message_quiet(message.chat.id, bot.m('not_implemented'))
+        generic.settings(message)
 
     @bot.message_handler(commands=['extra'])
     def extra(message: Message):

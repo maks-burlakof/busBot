@@ -17,6 +17,13 @@ class Notify(BaseAction):
             'date': '',
         }
 
+    @staticmethod
+    def _find_track_in_data(notify_data: list, date_: str):
+        for i in range(len(notify_data)):
+            if date_ == notify_data[i]['date']:
+                return i
+        return None
+
     def start(self, message: Message):
         user_id = message.from_user.id
         chat_id = message.chat.id
@@ -35,7 +42,7 @@ class Notify(BaseAction):
                 self.bot.send_message_quiet(
                     chat_id,
                     self.bot.m('notify_template') % notify_date.strftime('%d %B %Yг. (%a)'),
-                    reply_markup=self.markups.delete(i, len_data)
+                    reply_markup=self.markups.delete_update(i, len_data, notify_data[i]['date'])
                 )
         else:
             self._add(user_id, chat_id)
@@ -50,15 +57,31 @@ class Notify(BaseAction):
         else:
             self.bot.send_message_quiet(chat_id, self.bot.m('notify_exceeded')(self.max_dates))
 
-    def _delete(self, call: CallbackQuery, user_id: int, chat_id: int, index: int):
+    def _delete(self, call: CallbackQuery, user_id: int, chat_id: int, date_):
         notify_data = self.bot.db.user_get(user_id)['notify']
-        notify_data.pop(index)
-        self.bot.db.notify_update(user_id, notify_data)
-        self.bot.answer_callback_query(call.id, self.bot.m('notify_delete_success'))
+        index = self._find_track_in_data(notify_data, date_)
+
+        if index != None:
+            notify_data.pop(index)
+            self.bot.db.notify_update(user_id, notify_data)
+            self.bot.answer_callback_query(call.id, self.bot.m('notify_delete_success'))
+        else:
+            self.bot.send_message_quiet(chat_id, self.bot.m('no_records'))
 
         msg = call.message
         msg.from_user = call.from_user
         self.start(msg)
+
+    def _update(self, call: CallbackQuery, date_: str, *args):
+        parsed_data = self.bot.parser.parse('Шумилино', 'Минск', date_)
+        if parsed_data:
+            self.bot.answer_callback_query(
+                call.id,
+                '✅\n\n' + self.bot.m('notify_notification') % self._get_date_obj(date_).strftime('%d %B %Yг. (%a)'),
+                show_alert=True,
+            )
+        else:
+            self.bot.answer_callback_query(call.id, '❌\n\n' + self.bot.m('notify_not_exist_date'), show_alert=True)
 
     def _date_select(self, call: CallbackQuery, user_id: int, chat_id: int, chosen_date: date):
         notify_data = self.bot.db.user_get(user_id)['notify']
@@ -66,7 +89,7 @@ class Notify(BaseAction):
         if (chosen_date - date.today()).days <= self.bot.time_delta:
             self.bot.send_message_quiet(chat_id, self.bot.m('notify_exist_date'))
             return
-        if str(chosen_date) in [dict_data['date'] for dict_data in notify_data]:
+        if self._find_track_in_data(notify_data, str(chosen_date)) != None:
             self.bot.send_message_quiet(chat_id, self.bot.m('notify_exist'))
             return
 
