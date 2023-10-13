@@ -79,14 +79,14 @@ class Calendar:
             keyboard.add(*row)
 
         if month == now_day.month:
-            keyboard.add(InlineKeyboardButton("Отменить",
+            keyboard.add(InlineKeyboardButton("❌ Отменить",
                                               callback_data=calendar_callback.new("CANCEL", year, month, "!")),
                          InlineKeyboardButton("👉🏼",
                                               callback_data=calendar_callback.new("NEXT-MONTH", year, month, "!")))
         else:
             keyboard.add(InlineKeyboardButton("👈🏼",
                                               callback_data=calendar_callback.new("PREVIOUS-MONTH", year, month, "!")),
-                         InlineKeyboardButton("Отменить",
+                         InlineKeyboardButton("❌ Отмена",
                                               callback_data=calendar_callback.new("CANCEL", year, month, "!")),
                          InlineKeyboardButton("👉🏼",
                                               callback_data=calendar_callback.new("NEXT-MONTH", year, month, "!")))
@@ -123,6 +123,10 @@ class Calendar:
                     ),
                 ),
             )
+        keyboard.add(InlineKeyboardButton(
+            "❌ Отменить",
+            callback_data=calendar_callback.new("CANCEL", year, 1, "!")
+        ))
 
         return keyboard
 
@@ -151,6 +155,7 @@ class Calendar:
         :return: Returns a tuple
         """
 
+        bot.answer_callback_query(call.id)
         current = datetime.datetime(int(year), int(month), 1)
         if action == "IGNORE":
             return False, None
@@ -202,9 +207,6 @@ class Calendar:
             )
             return None
         elif action == "CANCEL":
-            bot.delete_message(
-                chat_id=call.message.chat.id, message_id=call.message.message_id
-            )
             return "CANCEL", None
         else:
             bot.delete_message(

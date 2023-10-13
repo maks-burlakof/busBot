@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from telebot.types import (Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup,
                            InlineKeyboardButton, CallbackQuery, BotCommand, BotCommandScopeChat)
 
@@ -48,36 +48,46 @@ class BaseMarkup:
         )
         return keyboard
 
-    def cities(self, city_from: str = '', city_to: str = '') -> InlineKeyboardMarkup:
+    def cities(self, date_: str, from_: str = '', to_: str = '') -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(
             InlineKeyboardButton(
                 'Отправление:',
-                callback_data=self.sep.join([self.prefix_cities, 'IGNORE', city_from, city_to])
+                callback_data=self.sep.join([self.prefix_cities, 'IGNORE', date_, from_, to_])
             ),
             InlineKeyboardButton(
                 'Прибытие:',
-                callback_data=self.sep.join([self.prefix_cities, 'IGNORE', city_from, city_to])
+                callback_data=self.sep.join([self.prefix_cities, 'IGNORE', date_, from_, to_])
             )
         )
         for city in self._cities:
             keyboard.add(
                 InlineKeyboardButton(
-                    city if city != city_from else city + ' 👈',
+                    city if city != from_ else city + ' 👈',
                     callback_data=self.sep.join([
-                        self.prefix_cities, 'CITYSET' if city != city_from and city != city_to else 'IGNORE', city, city_to]
-                    )),
+                        self.prefix_cities, 'CITYSET' if city != from_ and city != to_ else 'IGNORE', date_, city, to_
+                    ])
+                ),
                 InlineKeyboardButton(
-                    city if city != city_to else '👉 ' + city,
+                    city if city != to_ else '👉 ' + city,
                     callback_data=self.sep.join([
-                        self.prefix_cities, 'CITYSET' if city != city_to and city != city_from else 'IGNORE', city_from, city
-                    ])))
-        if city_from and city_to:
+                        self.prefix_cities, 'CITYSET' if city != to_ and city != from_ else 'IGNORE', date_, from_, city
+                    ])
+                )
+            )
+        keyboard.add(InlineKeyboardButton(
+            '❌ Отменить',
+            callback_data=self.sep.join([self.prefix_cities, 'CANCEL'])
+        ))
+        if from_ and to_:
             keyboard.add(InlineKeyboardButton(
-                'Готово!',
-                callback_data=self.sep.join([self.prefix_cities, 'CITYSUBMIT', city_from, city_to]))
+                '✅ Готово!',
+                callback_data=self._cities_submit_callback_data(date_, from_, to_))
             )
         return keyboard
+
+    def _cities_submit_callback_data(self, date_: str, from_: str, to_: str):
+        return self.sep.join([self.prefix_cities, 'CITYSUBMIT', date_, from_, to_])
 
     def cities_handler(self, bot: MyBot, call: CallbackQuery, callback_data: list):
         action = callback_data[1]
@@ -85,23 +95,33 @@ class BaseMarkup:
             bot.edit_message_reply_markup(
                 call.message.chat.id,
                 call.message.id,
-                reply_markup=self.cities(city_from=callback_data[2], city_to=callback_data[3])
+                reply_markup=self.cities(date_=callback_data[2], from_=callback_data[3], to_=callback_data[4])
             )
         elif action == 'CITYSUBMIT':
             bot.delete_messages_safe(call.message.chat.id, [call.message.id])
-            return callback_data[2], callback_data[3]
+            return callback_data[2], callback_data[3], callback_data[4]
         return None
 
-    def departure_time(self, parser_data: dict) -> InlineKeyboardMarkup:
+    def departure_time(self, _date: str, _from: str, _to: str, parser_data: dict) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
         for bus in parser_data:
-            time = parser_data[bus]['departure_time']
-            free_places = parser_data[bus]['free_places_info']
+            time_ = parser_data[bus]['departure_time']
+            free_seats = parser_data[bus]['free_places_info']
+            free_seats_num = '0' if free_seats == 'Нет мест' else '1'
             keyboard.add(InlineKeyboardButton(
-                f'{time} ({free_places})',
-                callback_data=self.sep.join([self.prefix_time, time, free_places]))
-            )
+                f"{time_} ({free_seats})",
+                callback_data=self._departure_time_callback_data(
+                    _date, _from, _to, time_, free_seats_num
+                )
+            ))
+        keyboard.add(InlineKeyboardButton(
+            '❌ Отменить',
+            callback_data=self.sep.join([self.prefix_time, 'CANCEL'])
+        ))
         return keyboard
+
+    def _departure_time_callback_data(self, _date: str, _from: str, _to: str, time_: str, free_seats_num: str):
+        return self.sep.join([self.prefix_time, _date, _from, _to, time_, free_seats_num])
 
     def buy_ticket(self, url: str) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
@@ -113,6 +133,7 @@ class BaseAction:
     def __init__(self, bot: MyBot):
         self.bot = bot
         self.markups = BaseMarkup()
+        self.db_scheme = {}
 
     def is_allowed_user(self, message: Message, is_silent=False):
         if self.bot.db.user_is_active(message.from_user.id):
@@ -139,6 +160,10 @@ class BaseAction:
         date_obj = date(y, m, d)
         return date_obj
 
+    @staticmethod
+    def _get_datetime_obj(date_str: str) -> datetime:
+        return datetime.strptime(date_str, '%Y-%m-%d')
+
     def _start_delete_msgs(self, call: CallbackQuery, callback_data: list):
         index_msg = int(callback_data[2])
         total_num = int(callback_data[3])
@@ -158,14 +183,15 @@ class BaseAction:
 
         if action == 'CANCEL':
             self.bot.answer_callback_query(call.id, self.bot.m('cancel'))
+            self.bot.delete_message(chat_id, call.message.message_id)
 
         elif action == 'ADD':
             self._add(user_id, chat_id)
             self._start_delete_msgs(call, callback_data)
 
         elif action == 'DEL':
-            self._delete(call, user_id, chat_id, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
             self._start_delete_msgs(call, callback_data)
+            self._delete(call, user_id, chat_id, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
 
         elif action == 'UPD':
             self._update(call, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
@@ -176,12 +202,16 @@ class BaseAction:
                 self._date_select(call, user_id, chat_id, chosen_date)
 
         elif name == self.markups.prefix_cities:
-            cities = self.markups.cities_handler(self.bot, call, callback_data)
+            cities_data = self.markups.cities_handler(self.bot, call, callback_data)
             if action == 'CITYSUBMIT':
-                self._cities_select(user_id, chat_id, *cities)
+                self._cities_select(call, user_id, chat_id, *cities_data)
 
         elif name == self.markups.prefix_time:
-            self._time_select(call, user_id, chat_id, callback_data[1], callback_data[2])
+            if action != 'CANCEL':
+                self._time_select(
+                    call, user_id, chat_id, callback_data[1], callback_data[2],
+                    callback_data[3], callback_data[4], callback_data[5]
+                )
 
     def _add(self, *args, **kwargs):
         pass
@@ -192,8 +222,17 @@ class BaseAction:
     def _update(self, *args, **kwargs):
         pass
 
-    def _date_select(self, *args, **kwargs):
-        pass
+    def _date_select(self, call: CallbackQuery, user_id: int, chat_id: int, date_: date):
+        if (date_ - date.today()).days > self.bot.time_delta:
+            self.bot.send_message_quiet(chat_id, self.bot.m('no_buses'))
+            return
+
+        self.bot.send_message_quiet(
+            user_id,
+            f'<b>{self.bot.m("request_cities")}</b>' + self.bot.m('selected_date') % date_.strftime('%-d %B %Yг. (%a)'),
+            parse_mode='HTML',
+            reply_markup=self.markups.cities(str(date_))
+        )
 
     def _cities_select(self, *args, **kwargs):
         pass

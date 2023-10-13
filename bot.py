@@ -103,6 +103,17 @@ def initialize(bot: MyBot):
     def track_callback(call: CallbackQuery):
         track.callback(call)
 
+    # Parse
+    parse = Parse(bot)
+
+    @bot.message_handler(commands=['parse'], func=generic.is_allowed_user)
+    def parse_start(message: Message):
+        parse.start(message)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith(parse.markups.prefix))
+    def parse_callback(call: CallbackQuery):
+        parse.callback(call)
+
     # Unknown command
     @bot.message_handler()
     def ordinary_text(message: Message):

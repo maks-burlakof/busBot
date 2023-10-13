@@ -113,14 +113,8 @@ class DatabaseActions:
     def invite_code_remove(self, code: str):
         self.engine.execute_command('DELETE FROM invite_codes WHERE code = ?;', (code,))
 
-    # Notify
+    # Actions
 
-    def notify_update(self, user_id: int, notify_data: list):
-        completed_data = self._json_dump(notify_data)
-        self.engine.execute_command('UPDATE users SET notify_data = ? WHERE user_id = ?;', (completed_data, user_id))
-
-    # Track
-
-    def track_update(self, user_id: int, track_data: list):
-        completed_data = self._json_dump(track_data)
-        self.engine.execute_command('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+    def action_update(self, user_id: int, action_data_name: str, action_data: list):
+        completed_data = self._json_dump(action_data)
+        self.engine.execute_command(f'UPDATE users SET {action_data_name} = ? WHERE user_id = ?;', (completed_data, user_id))

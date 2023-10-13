@@ -17,7 +17,6 @@ class MyBot(telebot.TeleBot):
         self.tg = telegram_client
         self.parser = parser_client
         self.log = logger
-        self.temp = {}
 
         self.admin_chat_id = int(admin_chat_id)
         self.time_delta = TIME_DELTA

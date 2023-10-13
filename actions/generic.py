@@ -81,7 +81,7 @@ class Generic(BaseAction):
         for user in users:
             notify_num += len(user['notify'])
             for track_dict in user['track']:
-                if track_dict['is_active']:  # TODO: Проверить везде is_active = int 1
+                if track_dict['is_active']:  # TODO: Проверить везде в reminder is_active = int 1
                     track_num += 1
         self.bot.send_message_quiet(
             message.chat.id,
@@ -196,11 +196,11 @@ class Generic(BaseAction):
             track_response = ''
             for notify_dict in user['notify']:
                 notify_date = date(*[int(digit) for digit in notify_dict['date'].split('-')])
-                notify_response += self.bot.m('notify_template') % notify_date.strftime('%d %B %Yг. (%a)') + '\n'
+                notify_response += self.bot.m('notify_template') % notify_date.strftime('%-d %B %Yг. (%a)') + '\n'
             for track_dict in user['track']:
                 track_date = date(*[int(digit) for digit in track_dict['date'].split('-')])
                 track_response += '🟢 ' if track_dict['is_active'] else '❌ '
-                track_response += '%s %s\n%s 👉🏼 %s\n' % (track_date.strftime('%d %B (%a)'), track_dict['time'],
+                track_response += '%s %s\n%s 👉🏼 %s\n' % (track_date.strftime('%-d %B (%a)'), track_dict['time'],
                                                          track_dict['from'], track_dict['to'])
             if notify_response or track_response:
                 response += f"@{user['username']}\n"
@@ -231,7 +231,7 @@ class Generic(BaseAction):
                 self.bot.send_document(
                     message.chat.id,
                     document=f,
-                    visible_file_name=f'{datetime.now().strftime("%d %b %Y, %X")} logs.log',
+                    visible_file_name=f'{datetime.now().strftime("%-d %b %Y, %X")} logs.log',
                     caption='#LOGS',
                     disable_notification=True
                 )

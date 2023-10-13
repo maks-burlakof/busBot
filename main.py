@@ -2,6 +2,7 @@ import locale
 from os import environ
 from dotenv import load_dotenv
 from logging import getLogger, config
+import traceback
 
 from clients import TelegramClient, DatabaseClient, SiteParser
 from botclass import MyBot
@@ -42,8 +43,10 @@ if __name__ == '__main__':
         except (RuntimeError, KeyboardInterrupt):
             break
         except Exception as err:
+            exc_desc_lines = traceback.format_exception_only(type(err), err)
+            exc_desc = ''.join(exc_desc_lines).rstrip()
             bot.tg.post(
                 method="sendMessage",
-                params={'text': f'#error {err.__class__}\n{err}', 'chat_id': bot.admin_chat_id})
-            bot.log.error(f"{err.__class__} - {err}")
+                params={'text': f'#error {exc_desc}', 'chat_id': bot.admin_chat_id})
+            bot.log.error(f'{exc_desc}')
             bot.shutdown()
