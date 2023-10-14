@@ -27,7 +27,7 @@ class Notify(BaseAction):
     def start(self, message: Message):
         user_id = message.from_user.id
         chat_id = message.chat.id
-        notify_data = self.bot.db.user_get(user_id)['notify']
+        notify_data = sorted(self.bot.db.user_get(user_id)['notify'], key=lambda dct: dct['date'])
 
         if notify_data:
             len_data = len(notify_data)

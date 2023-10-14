@@ -22,8 +22,8 @@ class ParseMarkups(BaseMarkup):
         for dict_elem in parse_data:
             parse_date = date(*[int(j) for j in dict_elem['date'].split('-')])
             markup.add(InlineKeyboardButton(
-                '📆 {} {} 👉 {}'.format(
-                    parse_date.strftime('%-d %b (%a)'), dict_elem['from'], dict_elem['to']
+                '{} {} → {}'.format(
+                    parse_date.strftime('(%a) %-d %b'), dict_elem['from'], dict_elem['to']
                 ),
                 callback_data=self._cities_submit_callback_data(dict_elem['date'], dict_elem['from'], dict_elem['to'])
             ))
@@ -89,7 +89,7 @@ class Parse(BaseAction):
                             (f"💵 {parser_data[bus]['cost']} \n\n" if 'Нет мест' not in free_places_info else '\n')
             self.bot.edit_message_text(
                 self.bot.m('parse_response_template') % (
-                    from_, to_, date_.strftime('%d %B %Yг. (%a)')
+                    from_, to_, date_.strftime('%-d %B %Yг. (%a)')
                 ) + '\n' + stylized,
                 chat_id,
                 msg.id,

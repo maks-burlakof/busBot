@@ -32,7 +32,7 @@ class Generic(BaseAction):
             code = msg.text.strip(' ')
             codes = self.bot.db.invite_codes_get()
             if code not in codes:
-                self.bot.send_message(msg.chat.id, self.bot.m('register_incorrect'))
+                self.bot.send_message_quiet(msg.chat.id, self.bot.m('register_incorrect'))
                 return
             else:
                 self.bot.db.invite_code_remove(code)
@@ -49,7 +49,7 @@ class Generic(BaseAction):
         if self.bot.db.user_get(user_id) and self.bot.db.user_is_active(user_id):
             self.bot.send_message_quiet(message.chat.id, self.bot.m('register_exists'))
             return
-        self.bot.send_message(message.chat.id, self.bot.m('register_request'))
+        self.bot.send_message_quiet(message.chat.id, self.bot.m('register_request'))
         self.bot.register_next_step_handler(message, register_handle_confirmation)
 
     def settings(self, message: Message):
@@ -65,7 +65,14 @@ class Generic(BaseAction):
     def extra(self, message: Message):
         self.bot.send_message_quiet(
             message.chat.id,
-            self.bot.m('extra') + self.bot.m('extra_admin') if message.chat.id == self.bot.admin_chat_id else self.bot.m('extra'),
+            self.bot.m('extra') + (self.bot.m('extra_add_admin') if message.chat.id == self.bot.admin_chat_id else ''),
+            parse_mode='HTML'
+        )
+
+    def extra_admin(self, message: Message):
+        self.bot.send_message_quiet(
+            message.chat.id,
+            self.bot.m('extra_admin'),
             parse_mode='HTML'
         )
 
@@ -80,7 +87,7 @@ class Generic(BaseAction):
         for user in users:
             notify_num += len(user['notify'])
             for track_dict in user['track']:
-                if track_dict['is_active']:  # TODO: Проверить везде в reminder is_active = int 1
+                if track_dict['is_active']:
                     track_num += 1
         self.bot.send_message_quiet(
             message.chat.id,
@@ -242,17 +249,6 @@ class Generic(BaseAction):
         with open('logs.log', 'w') as f:
             f.write('')
 
-    def secret(self, message: Message):
-        self.bot.send_message(
-            message.chat.id,
-            '||по пиву сегодня?||',
-            parse_mode='MarkdownV2'
-        )
-        self.bot.send_message(
-            self.bot.admin_chat_id,
-            f'#info: {message.from_user.full_name} @{message.from_user.username} отправил /secret'
-        )
-
     def exit_bot(self, message: Message):
         def exit_bot_handle_confirmation(msg: Message):
             if msg.text.lower().strip() == 'выключение':
@@ -264,6 +260,17 @@ class Generic(BaseAction):
 
         self.bot.send_message(message.chat.id, self.bot.m('exit_confirm'), parse_mode='Markdown')
         self.bot.register_next_step_handler(message, exit_bot_handle_confirmation)
+
+    def secret(self, message: Message):
+        self.bot.send_message(
+            message.chat.id,
+            '||по пиву сегодня?||',
+            parse_mode='MarkdownV2'
+        )
+        self.bot.send_message(
+            self.bot.admin_chat_id,
+            f'#info: {message.from_user.full_name} @{message.from_user.username} отправил /secret'
+        )
 
     def ordinary_text(self, message: Message):
         if self.is_allowed_user(message, is_silent=True):

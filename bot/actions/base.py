@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from telebot.types import (Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup,
                            InlineKeyboardButton, CallbackQuery, BotCommand, BotCommandScopeChat)
 
@@ -76,7 +76,7 @@ class BaseMarkup:
                 )
             )
         keyboard.add(InlineKeyboardButton(
-            '❌ Отменить',
+            '❌',
             callback_data=self.sep.join([self.prefix_cities, 'CANCEL'])
         ))
         if from_ and to_:
@@ -115,7 +115,7 @@ class BaseMarkup:
                 )
             ))
         keyboard.add(InlineKeyboardButton(
-            '❌ Отменить',
+            '❌',
             callback_data=self.sep.join([self.prefix_time, 'CANCEL'])
         ))
         return keyboard
@@ -142,7 +142,7 @@ class BaseAction:
             if not is_silent:
                 if message.text == '/start':
                     self.bot.send_sticker(message.chat.id, self.bot.m('start_anonymous_user_sticker'))
-                    self.bot.send_message(message.chat.id, self.bot.m('start_anonymous_user') + self.bot.m('not_allowed_base'))
+                    self.bot.send_message_quiet(message.chat.id, self.bot.m('start_anonymous_user') + self.bot.m('not_allowed_base'))
                 else:
                     self.bot.send_message_quiet(message.chat.id, self.bot.m('not_allowed') + self.bot.m('not_allowed_base'))
             return False

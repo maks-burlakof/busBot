@@ -16,8 +16,8 @@ class TrackMarkups(BaseMarkup):
                 track_date = date(*[int(j) for j in dict_elem['date'].split('-')])
                 if (track_date - date.today()).days >= 0:
                     markup.add(InlineKeyboardButton(
-                        '📆 {} {} 👉 {}'.format(
-                            track_date.strftime('%-d %b (%a)'), dict_elem['from'], dict_elem['to']
+                        '{} {} → {}'.format(
+                            track_date.strftime('(%a) %-d %b'), dict_elem['from'], dict_elem['to']
                         ),
                         callback_data=self._cities_submit_callback_data(dict_elem['date'], dict_elem['from'], dict_elem['to'])
                     ))
@@ -57,11 +57,23 @@ class Track(BaseAction):
     def _get_inactive_data(track_data: list):
         return [dict_elem for dict_elem in track_data if not dict_elem['is_active']]
 
+    def _set_new_data(self, user_id: int, track_data: list, date_: str, from_: str, to_: str, time_: str):
+        json_data = self.db_scheme
+        json_data.update({
+            'date': date_,
+            'from': from_,
+            'to': to_,
+            'time': time_,
+            'passed': 0,
+            'is_active': 1,
+        })
+        self.bot.db.action_update(user_id, 'track_data', track_data + [json_data])
+
     def start(self, message: Message):
         user_id = message.from_user.id
         chat_id = message.chat.id
         track_data = self.bot.db.user_get(user_id)['track']
-        track_data_active = self._get_active_data(track_data)
+        track_data_active = sorted(self._get_active_data(track_data), key=lambda dct: dct['date'])
 
         if track_data_active:
             len_data = len(track_data_active)
@@ -96,12 +108,23 @@ class Track(BaseAction):
 
         if len(track_data_active) < self.max_tracks:
 
-            # Remove old inactive track data from DB
+            # Remove old non-unique inactive data
             track_data_inactive = self._get_inactive_data(track_data)
+            track_data_inactive_unique = set()
             for dict_ in track_data_inactive:
+                # Check date actuality
                 date_ = self._get_datetime_obj(dict_['date'])
                 if date_ < datetime.today():
                     track_data.remove(dict_)
+                    continue
+                # Check unique
+                dict_str = f"{dict_['date']}{dict_['from']}{dict_['to']}"
+                if dict_str not in track_data_inactive_unique:
+                    track_data_inactive_unique.add(dict_str)
+                else:
+                    track_data.remove(dict_)
+
+            # Remove old inactive data by length
             over = len(track_data_inactive) - self.max_history
             if over > 0:
                 for i in range(over):
@@ -181,18 +204,9 @@ class Track(BaseAction):
                 inactive_index = self._find_track_in_data(track_data, str(date_), from_, to_, time_, 0)
                 if inactive_index != None:
                     track_data.pop(inactive_index)
-                json_data = self.db_scheme
-                json_data.update({
-                    'date': str(date_),
-                    'from': from_,
-                    'to': to_,
-                    'time': time_,
-                    'passed': 0,
-                    'is_active': 1,
-                })
-                self.bot.db.action_update(user_id, 'track_data', track_data + [json_data])
+                self._set_new_data(user_id, track_data, str(date_), from_, to_, time_)
                 self.bot.answer_callback_query(call.id, self.bot.m('action_set'))
-                self.bot.log.info(f"Set new track data: {date_.strftime('%d %B %Yг. (%a)')} {from_} {to_} {time_}. "
+                self.bot.log.info(f"Set new track data: {date_.strftime('%-d %B %Yг. (%a)')} {from_} {to_} {time_}. "
                                   f"By {call.from_user.full_name} @{call.from_user.username}")
             else:
                 self.bot.send_message_quiet(chat_id, self.bot.m('track_exist'))
@@ -209,3 +223,33 @@ class Track(BaseAction):
             )
 
         self.bot.delete_messages_safe(chat_id, [call.message.id])
+
+    def status(self, message: Message):
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+        from_ = 'Витебск'
+        to_ = 'Минск'
+
+        msg = self.bot.send_message_quiet(chat_id, self.bot.m('loading'))
+        track_data = self.bot.db.user_get(user_id)['track']
+
+        for date_ in [date.today() + timedelta(days=i) for i in range(5)]:
+            response = self.bot.parser.parse(from_, to_, str(date_))
+            for data in response.values():
+                time_ = data['departure_time']
+                if data['free_places_info'] != 'Нет мест':
+                    ind1 = self._find_track_in_data(track_data, str(date_), from_, to_, time_, 1)
+                    ind2 = self._find_track_in_data(track_data, str(date_), from_, to_, time_, 0)
+                    if not ind1 and not ind2:
+                        self._set_new_data(user_id, track_data, str(date_), from_, to_, time_)
+                        self.bot.edit_message_text(
+                            '*Статус подключения*\n✅ route.by\n🌀 Reminder Track\n\n*Установлен тестовый рейс:*' +
+                                self.bot.m('selected_date') % date_.strftime('%-d %B %Yг. (%a)') +
+                                self.bot.m('selected_cities') % (from_, to_) + f', {time_}',
+                            chat_id,
+                            msg.id,
+                            parse_mode='Markdown',
+                        )
+                        self.start(message)
+                        return
+        self.bot.edit_message_text(self.bot.m('no_buses'), chat_id, msg.id)

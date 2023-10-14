@@ -25,6 +25,10 @@ def initialize(bot: MyBot):
     def extra(message: Message):
         generic.extra(message)
 
+    @bot.message_handler(commands=['extra_admin'], func=generic.is_admin)
+    def extra_admin(message: Message):
+        generic.extra_admin(message)
+
     @bot.message_handler(commands=['description'])
     def description(message: Message):
         generic.description(message)
@@ -103,6 +107,10 @@ def initialize(bot: MyBot):
     def track_callback(call: CallbackQuery):
         track.callback(call)
 
+    @bot.message_handler(commands=['status'], func=generic.is_admin)
+    def status(message: Message):
+        track.status(message)
+
     # Parse
     parse = Parse(bot)
 
@@ -118,22 +126,3 @@ def initialize(bot: MyBot):
     @bot.message_handler()
     def ordinary_text(message: Message):
         generic.ordinary_text(message)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
