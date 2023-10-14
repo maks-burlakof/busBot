@@ -1,7 +1,7 @@
 from telebot.types import Message, CallbackQuery
 
-from botclass import MyBot
-from actions import Generic, Notify, Track, Parse
+from bot.botclass import MyBot
+from bot.actions import Generic, Notify, Track, Parse
 
 
 def initialize(bot: MyBot):

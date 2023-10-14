@@ -1,4 +1,4 @@
-from actions.base import *
+from bot.actions.base import *
 
 
 class TrackMarkups(BaseMarkup):

@@ -1,9 +1,8 @@
 from random import randint, sample
 from string import ascii_letters, digits
-from datetime import datetime
 from telebot.apihelper import ApiTelegramException
 
-from actions.base import *
+from bot.actions.base import *
 
 
 class Generic(BaseAction):
@@ -259,7 +258,7 @@ class Generic(BaseAction):
             if msg.text.lower().strip() == 'выключение':
                 self.bot.send_message(msg.chat.id, self.bot.m('exit_exit'))
                 self.bot.log.critical(f'The bot was disabled by {msg.from_user.full_name} @{msg.from_user.username}')
-                self.bot.stop_bot()
+                raise RuntimeError(f'The bot was disabled by administrator')
             else:
                 self.bot.send_message_quiet(msg.chat.id, self.bot.m('cancel'))
 

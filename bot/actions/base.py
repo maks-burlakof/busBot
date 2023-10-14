@@ -2,8 +2,8 @@ from datetime import date, datetime
 from telebot.types import (Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup,
                            InlineKeyboardButton, CallbackQuery, BotCommand, BotCommandScopeChat)
 
-from botclass import MyBot
-from markups import Calendar
+from bot.botclass import MyBot
+from bot.markups import Calendar
 from clients import SiteParser
 
 

@@ -5,10 +5,10 @@ from logging import getLogger, config
 import traceback
 
 from clients import TelegramClient, DatabaseClient, SiteParser
-from botclass import MyBot
-from bot import initialize
-from database import DatabaseActions
-from message_texts import MESSAGES
+from bot.botclass import MyBot
+from bot.bot import initialize
+from bot.database import DatabaseActions
+from bot.message_texts import MESSAGES
 
 # Configure environment
 load_dotenv()
@@ -33,16 +33,18 @@ bot = MyBot(
     token=TOKEN, telegram_client=telegram_client, parser_client=parser_client, database_actions=database_actions,
     logger=logger, admin_chat_id=ADMIN_CHAT_ID, messages=MESSAGES
 )
-initialize(bot)
 
 if __name__ == '__main__':
+    initialize(bot)
     while True:
         try:
             bot.setup()
             bot.polling()
-        except (RuntimeError, KeyboardInterrupt):
+        except RuntimeError:
+            bot.stop_bot()
+            bot.shutdown()
             break
-        except Exception as err:
+        except Exception as err:  # TODO: do not log requests TimedOut errors
             exc_desc_lines = traceback.format_exception_only(type(err), err)
             exc_desc = ''.join(exc_desc_lines).rstrip()
             bot.tg.post(

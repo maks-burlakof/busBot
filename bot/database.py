@@ -1,6 +1,4 @@
 import json
-from datetime import date
-from typing import Union
 
 from clients import DatabaseClient
 

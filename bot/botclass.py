@@ -1,9 +1,8 @@
 from random import choice
 import telebot
 
-from workers.reminder import TIME_DELTA
 from clients import TelegramClient, SiteParser
-from database import DatabaseActions
+from bot.database import DatabaseActions
 
 
 class MyBot(telebot.TeleBot):
@@ -19,7 +18,7 @@ class MyBot(telebot.TeleBot):
         self.log = logger
 
         self.admin_chat_id = int(admin_chat_id)
-        self.time_delta = TIME_DELTA
+        self.time_delta = 29  # days before the bus
         self._m = messages
 
     def setup(self):
