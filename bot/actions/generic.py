@@ -56,7 +56,7 @@ class Generic(BaseAction):
         # Set commands for administrator
         self.bot.set_my_commands(
             self.bot.get_my_commands() + [
-                BotCommand('database', 'База данных')
+                BotCommand('db', 'База данных')
             ],
             BotCommandScopeChat(chat_id=self.bot.admin_chat_id),
         )
@@ -196,27 +196,22 @@ class Generic(BaseAction):
 
     def database_view(self, message: Message):
         users = self.bot.db.users_get_all()
-        response = ''
+        is_full = '-full' in message.text
+        response = f"<b>База данных{' (полностью)' if is_full else ''}:</b>\n"
         for user in users:
-            notify_response = ''
-            track_response = ''
-            for notify_dict in user['notify']:
-                notify_date = date(*[int(digit) for digit in notify_dict['date'].split('-')])
-                notify_response += self.bot.m('notify_template') % notify_date.strftime('%-d %B %Yг. (%a)') + '\n'
-            for track_dict in user['track']:
-                track_date = date(*[int(digit) for digit in track_dict['date'].split('-')])
-                track_response += '🟢 ' if track_dict['is_active'] else '❌ '
-                track_response += '%s %s\n%s 👉🏼 %s\n' % (track_date.strftime('%-d %B (%a)'), track_dict['time'],
-                                                         track_dict['from'], track_dict['to'])
-            if notify_response or track_response:
-                response += f"@{user['username']}\n"
-                response += '1️⃣ \n' + notify_response if notify_response else ''
-                response += '2️⃣ \n' + track_response if track_response else ''
-        self.bot.send_message_quiet(
-            message.chat.id,
-            self.bot.m('database_view') + response,
-            parse_mode='HTML'
-        )
+            notify_resp = ''
+            track_resp = ''
+            for dict_ in user['notify']:
+                date_ = date(*[int(digit) for digit in dict_['date'].split('-')])
+                notify_resp += self.bot.m('notify_template') % date_.strftime('%-d %B %Yг. (%a)') + '\n'
+            for dict_ in user['track']:
+                if not dict_['is_active'] and not is_full:
+                    continue
+                date_ = date(*[int(digit) for digit in dict_['date'].split('-')])
+                track_resp += '🟢 ' if dict_['is_active'] else '❌ '
+                track_resp += '%s\n%s → %s, %s\n' % (date_.strftime('%-d %B (%a)'), dict_['from'], dict_['to'], dict_['time'])
+            response += f"@{user['username']}\n{notify_resp}{track_resp}\n" if notify_resp or track_resp else ''
+        self.bot.send_message_quiet(message.chat.id, response, parse_mode='HTML')
 
     def invite_codes_view(self, message: Message):
         codes = self.bot.db.invite_codes_get()

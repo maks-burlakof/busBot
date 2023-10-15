@@ -57,7 +57,7 @@ def initialize(bot: MyBot):
     def ban_user(message: Message):
         generic.ban_user(message)
 
-    @bot.message_handler(commands=['database'], func=generic.is_admin)
+    @bot.message_handler(commands=['db'], func=generic.is_admin)
     def database_view(message: Message):
         generic.database_view(message)
 
@@ -114,7 +114,7 @@ def initialize(bot: MyBot):
     # Parse
     parse = Parse(bot)
 
-    @bot.message_handler(commands=['parse'], func=generic.is_allowed_user)
+    @bot.message_handler(commands=['find'], func=generic.is_allowed_user)
     def parse_start(message: Message):
         parse.start(message)
 

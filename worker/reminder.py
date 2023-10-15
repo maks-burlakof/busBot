@@ -41,7 +41,7 @@ class Reminder:
     @staticmethod
     def _markup_buy_ticket(url: str) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('💳 Заказать на сайте', url=url))
+        keyboard.add(InlineKeyboardButton('💳 Бронировать', url=url))
         return keyboard
 
     @check_working_time
@@ -65,52 +65,48 @@ class Reminder:
     @check_working_time
     def track(self):
         self._log('Reminder.track() is called')
-        for user in self.bot.db.users_get_all():
-            new_data = deepcopy(user['track'])
-            for dict_ in user['track']:
-                if dict_['is_active']:
-                    datetime_ = datetime.strptime(f"{dict_['date']} {dict_['time']}", '%Y-%m-%d %H:%M')
-                    if datetime_ >= datetime.today():
-                        track_delta = (datetime_ - datetime.today()).days
-                        index_ = new_data.index(dict_)
+        for user_id, chat_id, username, dict_ in self.bot.db.track_get_all_active():
+            datetime_ = datetime.strptime(f"{dict_['date']} {dict_['time']}", '%Y-%m-%d %H:%M')
+            if datetime_ < datetime.today():
+                self.bot.db.track_remove_by_data(user_id, dict_)
+                continue
+            days_delta = (datetime_ - datetime.today()).days
 
-                        if track_delta >= 1:  # not tomorrow
-                            if track_delta == 1:  # after one day
-                                freq = 3
-                            elif track_delta <= 5:
-                                freq = 5
-                            else:
-                                freq = 10
+            if days_delta >= 1:  # not tomorrow
+                if days_delta == 1:  # after one day
+                    freq = 3
+                elif days_delta <= 5:
+                    freq = 5
+                else:
+                    freq = 10
 
-                            if dict_['passed'] < freq:
-                                new_data[index_]['passed'] += 1
-                                continue
-                            else:
-                                new_data[index_]['passed'] = 0
-
-                        free_seats = self.bot.parser.get_free_seats(
-                            dict_['from'], dict_['to'], dict_['date'], dict_['time']
-                        )
-                        if free_seats:
-                            self.bot.send_message(
-                                user['chat_id'],
-                                self.bot.m('track_notification') % (
-                                    datetime_.strftime('%-d %B %Yг. (%a)'), dict_['from'], dict_['to'], dict_['time']
-                                ),
-                                parse_mode='Markdown',
-                                reply_markup=self._markup_buy_ticket(self.bot.parser.prepare_url(
-                                    dict_['from'], dict_['to'], dict_['date']
-                                )),
-                            )
-                            new_data[index_]['is_active'] = 0
-                            new_data[index_]['passed'] = 0
-                            self._log(f"Track message ({dict_['date']}, {dict_['from']}-{dict_['to']} {dict_['time']}) sent to @{user['username']}")
+                if dict_['passed'] < freq:
+                    self.bot.db.track_update_by_data(user_id, dict_, 'passed', dict_['passed'] + 1)
+                    continue
+                else:
+                    is_success = self.bot.db.track_update_by_data(user_id, dict_, 'passed', 0)
+                    if is_success:
+                        dict_['passed'] = 0
                     else:
-                        new_data.remove(dict_)
                         continue
 
-            if new_data != user['track']:
-                self.bot.db.action_update(user['user_id'], 'track_data', new_data)
+            free_seats = self.bot.parser.get_free_seats(
+                dict_['from'], dict_['to'], dict_['date'], dict_['time']
+            )
+            if free_seats:
+                self.bot.send_message(
+                    chat_id,
+                    self.bot.m('track_notification') % (
+                        datetime_.strftime('%-d %B %Yг. (%a)'), dict_['from'], dict_['to'], dict_['time']
+                    ),
+                    parse_mode='Markdown',
+                    reply_markup=self._markup_buy_ticket(self.bot.parser.prepare_url(
+                        dict_['from'], dict_['to'], dict_['date']
+                    )),
+                )
+                self.bot.db.track_update_by_data(user_id, dict_, 'is_active', 0)
+                self._log(f"Track message ({datetime_.strftime('%-d %B %Yг. (%a)')}, "
+                          f"{dict_['from']}-{dict_['to']} {dict_['time']}) sent to @{username}")
 
 
 if __name__ == '__main__':

@@ -1,3 +1,5 @@
+from time import time
+
 from bot.actions.base import *
 
 
@@ -40,12 +42,12 @@ class Track(BaseAction):
         }
 
     @staticmethod
-    def _find_track_in_data(track_data: list, date_: str, from_: str, to_: str, time_: str, is_active: int):
+    def _find_track_in_data(track_data: list, date_: str, from_: str, to_: str, time_: str | None, is_active: int | None):
+        requested_data = tuple(arg for arg in [date_, from_, to_, time_, is_active] if arg != None)
         for i in range(len(track_data)):
-            if (date_, from_, to_, time_, is_active) == (
-                    track_data[i]['date'], track_data[i]['from'], track_data[i]['to'],
-                    track_data[i]['time'], track_data[i]['is_active']
-            ):
+            if requested_data == (track_data[i]['date'], track_data[i]['from'], track_data[i]['to']) + \
+                    ((track_data[i]['time'],) if time_ != None else ()) + \
+                    ((track_data[i]['is_active'],) if is_active != None else ()):
                 return i
         return None
 
@@ -157,9 +159,10 @@ class Track(BaseAction):
         else:
             self.bot.answer_callback_query(call.id, self.bot.m('no_records'))
 
-        msg = call.message
-        msg.from_user = call.from_user
-        self.start(msg)
+        if self._get_active_data(track_data):
+            msg = call.message
+            msg.from_user = call.from_user
+            self.start(msg)
 
     def _update(self, call: CallbackQuery, date_: str, from_: str, to_: str, time_: str):
         free_seats = self.bot.parser.get_free_seats(from_, to_, date_, time_)
@@ -198,10 +201,16 @@ class Track(BaseAction):
                      date_: str, from_: str, to_: str, time_: str, free_seats_num: str):
         date_ = self._get_date_obj(date_)
         track_data = self.bot.db.user_get(user_id)['track']
+        track_data_active = self._get_active_data(track_data)
+
+        if len(track_data_active) >= self.max_tracks:
+            self.bot.send_message_quiet(chat_id, self.bot.m('track_exceeded')(self.max_tracks))
+            self.bot.delete_messages_safe(chat_id, [call.message.id])
+            return
 
         if free_seats_num == '0':
             if self._find_track_in_data(track_data, str(date_), from_, to_, time_, 1) == None:
-                inactive_index = self._find_track_in_data(track_data, str(date_), from_, to_, time_, 0)
+                inactive_index = self._find_track_in_data(track_data, str(date_), from_, to_, None, 0)
                 if inactive_index != None:
                     track_data.pop(inactive_index)
                 self._set_new_data(user_id, track_data, str(date_), from_, to_, time_)
@@ -234,22 +243,25 @@ class Track(BaseAction):
         track_data = self.bot.db.user_get(user_id)['track']
 
         for date_ in [date.today() + timedelta(days=i) for i in range(5)]:
+            if self._find_track_in_data(track_data, str(date_), from_, to_, None, None) != None:
+                continue
+            start_time = time()
             response = self.bot.parser.parse(from_, to_, str(date_))
+            end_time = time()
+            execution_time = round(end_time - start_time, 2)
             for data in response.values():
                 time_ = data['departure_time']
                 if data['free_places_info'] != 'Нет мест':
-                    ind1 = self._find_track_in_data(track_data, str(date_), from_, to_, time_, 1)
-                    ind2 = self._find_track_in_data(track_data, str(date_), from_, to_, time_, 0)
-                    if not ind1 and not ind2:
-                        self._set_new_data(user_id, track_data, str(date_), from_, to_, time_)
-                        self.bot.edit_message_text(
-                            '*Статус подключения*\n✅ route.by\n🌀 Reminder Track\n\n*Установлен тестовый рейс:*' +
-                                self.bot.m('selected_date') % date_.strftime('%-d %B %Yг. (%a)') +
-                                self.bot.m('selected_cities') % (from_, to_) + f', {time_}',
-                            chat_id,
-                            msg.id,
-                            parse_mode='Markdown',
-                        )
-                        self.start(message)
-                        return
+                    self._set_new_data(user_id, track_data, str(date_), from_, to_, time_)
+                    self.bot.edit_message_text(
+                        f'*Статус подключения*\n✅ route.by\n🌀 Reminder Track - {execution_time} sec.\n\n'
+                        '*Установлен тестовый рейс:*' +
+                            self.bot.m('selected_date') % date_.strftime('%-d %B %Yг. (%a)') +
+                            self.bot.m('selected_cities') % (from_, to_) + f', {time_}',
+                        chat_id,
+                        msg.id,
+                        parse_mode='Markdown',
+                    )
+                    self.start(message)
+                    return
         self.bot.edit_message_text(self.bot.m('no_buses'), chat_id, msg.id)

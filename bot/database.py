@@ -32,8 +32,8 @@ class DatabaseActions:
                     "code" TEXT NOT NULL
                 );
             """
-        self.engine.execute_command(CREATE_USERS_TABLE, ())
-        self.engine.execute_command(CREATE_INVITE_CODES_TABLE, ())
+        self.engine.execute(CREATE_USERS_TABLE, ())
+        self.engine.execute(CREATE_INVITE_CODES_TABLE, ())
 
     @staticmethod
     def _get_json_data(raw_data) -> list:
@@ -57,7 +57,7 @@ class DatabaseActions:
     # Users
 
     def user_get(self, user_id: int) -> dict:
-        user_raw = self.engine.execute_select_command('SELECT user_id, username, chat_id, is_active, level, notify_data, track_data, parse_data FROM users WHERE user_id = %s;' % user_id)
+        user_raw = self.engine.execute_select('SELECT user_id, username, chat_id, is_active, level, notify_data, track_data, parse_data FROM users WHERE user_id = %s;' % user_id)
         if user_raw:
             return {
                 'user_id': user_raw[0][0],
@@ -73,27 +73,27 @@ class DatabaseActions:
             return {}
 
     def user_is_active(self, user_id) -> bool:
-        response = self.engine.execute_select_command('SELECT is_active FROM users WHERE user_id = %s;' % user_id)
+        response = self.engine.execute_select('SELECT is_active FROM users WHERE user_id = %s;' % user_id)
         if response:
             return True if response[0][0] == 1 else False
         else:
             return False
 
     def user_make_active(self, user_id: int):
-        self.engine.execute_command('UPDATE users SET is_active = 1 WHERE user_id = ?', (user_id,))
+        self.engine.execute('UPDATE users SET is_active = 1 WHERE user_id = ?', (user_id,))
 
     def user_make_inactive(self, user_id: int):
-        self.engine.execute_command('UPDATE users SET is_active = 0 WHERE user_id = ?', (user_id,))
+        self.engine.execute('UPDATE users SET is_active = 0 WHERE user_id = ?', (user_id,))
 
     def user_add_active(self, user_id: int, username: str, chat_id: int):
         empty_list = json.dumps([])
-        self.engine.execute_command(
+        self.engine.execute(
             'INSERT INTO users (user_id, username, chat_id, is_active, level, notify_data, track_data, parse_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
             (user_id, username, chat_id, 1, 1, empty_list, empty_list, empty_list)
         )
 
     def users_get_all(self):
-        ids_raw = self.engine.execute_select_command('SELECT user_id FROM users')
+        ids_raw = self.engine.execute_select('SELECT user_id FROM users')
         data = []
         for id_ in ids_raw:
             data.append(self.user_get(id_[0]))
@@ -102,17 +102,61 @@ class DatabaseActions:
     # Invite codes
 
     def invite_codes_get(self):
-        codes = self.engine.execute_select_command('SELECT code FROM invite_codes')
+        codes = self.engine.execute_select('SELECT code FROM invite_codes')
         return [code[0] for code in codes]
 
     def invite_code_add(self, code: str):
-        self.engine.execute_command('INSERT INTO invite_codes (code) VALUES (?);', (code,))
+        self.engine.execute('INSERT INTO invite_codes (code) VALUES (?);', (code,))
 
     def invite_code_remove(self, code: str):
-        self.engine.execute_command('DELETE FROM invite_codes WHERE code = ?;', (code,))
+        self.engine.execute('DELETE FROM invite_codes WHERE code = ?;', (code,))
 
     # Actions
 
     def action_update(self, user_id: int, action_data_name: str, action_data: list):
         completed_data = self._json_dump(action_data)
-        self.engine.execute_command(f'UPDATE users SET {action_data_name} = ? WHERE user_id = ?;', (completed_data, user_id))
+        self.engine.execute(f'UPDATE users SET {action_data_name} = ? WHERE user_id = ?;', (completed_data, user_id))
+
+    # For reminder
+
+    def track_get_all_active(self) -> list:
+        sql_query = "SELECT user_id, chat_id, username, json_extract(value, '$') AS track_date " \
+                    "FROM users, json_each(users.track_data) " \
+                    "WHERE " \
+                    "track_date IS NOT NULL " \
+                    "AND json_extract(track_date, '$.is_active') = 1 " \
+                    ";"
+        raw_data = self.engine.execute_select(sql_query)
+        return [(raw_tuple[0], raw_tuple[1], raw_tuple[2], self._get_json_data(raw_tuple[3])) for raw_tuple in raw_data]
+
+    def track_remove_by_data(self, user_id: int, data_to_remove: dict) -> bool:
+        """
+        :return: Was the element successfully removed
+        """
+        data_raw = self.engine.execute_select('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(data_raw)
+        try:
+            index_to_delete = data.index(data_to_remove)
+        except ValueError:
+            return False
+        else:
+            data.pop(index_to_delete)
+            completed_data = self._json_dump(data)
+            self.engine.execute('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+            return True
+
+    def track_update_by_data(self, user_id: int, searched_data: dict, key: str, value) -> bool:
+        """
+        Update specific track date for the user without any checks.
+        """
+        data_raw = self.engine.execute_select('SELECT track_data FROM users WHERE user_id = %s;' % user_id)
+        data = self._get_json_data(data_raw)
+        try:
+            index_to_update = data.index(searched_data)
+        except ValueError:
+            return False
+        else:
+            data[index_to_update][key] = value
+            completed_data = self._json_dump(data)
+            self.engine.execute('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
+            return True

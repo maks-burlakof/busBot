@@ -84,12 +84,12 @@ class Parse(BaseAction):
             stylized = ""
             for bus in parser_data:
                 free_places_info = parser_data[bus]['free_places_info']
-                stylized += f"🕓 *{parser_data[bus]['departure_time']}* 👉🏻 {parser_data[bus]['arrival_time']} \n" + \
-                            ("⛔️ " if 'Нет мест' in free_places_info else "✅ ") + f"{free_places_info} \n" + \
-                            (f"💵 {parser_data[bus]['cost']} \n\n" if 'Нет мест' not in free_places_info else '\n')
+                stylized += f"🕓 *{parser_data[bus]['departure_time']}* - {parser_data[bus]['arrival_time']} \n" + \
+                            ("⛔️ " if 'Нет мест' in free_places_info else "✅ ") + f"{free_places_info} " + \
+                            (f"💵 {parser_data[bus]['cost']} \n\n" if 'Нет мест' not in free_places_info else '\n\n')
             self.bot.edit_message_text(
                 self.bot.m('parse_response_template') % (
-                    from_, to_, date_.strftime('%-d %B %Yг. (%a)')
+                    from_, to_, date_.strftime('(%a) %-d %B %Yг.')
                 ) + '\n' + stylized,
                 chat_id,
                 msg.id,

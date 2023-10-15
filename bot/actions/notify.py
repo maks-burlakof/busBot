@@ -87,6 +87,9 @@ class Notify(BaseAction):
     def _date_select(self, call: CallbackQuery, user_id: int, chat_id: int, date_: date):
         notify_data = self.bot.db.user_get(user_id)['notify']
 
+        if len(notify_data) >= self.max_dates:
+            self.bot.send_message_quiet(chat_id, self.bot.m('notify_exceeded')(self.max_dates))
+            return
         if (date_ - date.today()).days <= self.bot.time_delta:
             self.bot.send_message_quiet(chat_id, self.bot.m('notify_exist_date'))
             return
