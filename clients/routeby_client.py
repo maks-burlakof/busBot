@@ -3,24 +3,32 @@ from bs4 import BeautifulSoup
 
 
 class SiteParser:
-    def __init__(self, user_actioner):
-        user_actioner.setup()
-        self.city_data = user_actioner.get_city_data()
-        user_actioner.shutdown()
+    def __init__(self):
+        self.city_data = self.get_cities()
+
+    @staticmethod
+    def get_cities() -> dict:
+        return {
+            'Шумилино': 'c621986',
+            'Витебск': 'c620127',
+            'Минск': 'c625144',
+        }
 
     def prepare_url(self, city_from: str, city_to: str, date: str):
         key_from = self.city_data.get(city_from)
         key_to = self.city_data.get(city_to)
         passengers = '1'
-        return f'https://v-minsk.com/Маршруты/{city_from}/{city_to}?date={date}&passengers={passengers}&from={key_from}&to={key_to}'
+        return f'https://route.by/Маршруты/{city_from}/{city_to}?date={date}&passengers={passengers}&from={key_from}&to={key_to}'
 
     def parse(self, city_from: str, city_to: str, date: str):
         url = self.prepare_url(city_from, city_to, date)
         page = requests.get(url)
         soup = BeautifulSoup(page.text, "html.parser")
         content = soup.find('div', class_='MuiGrid-grid-lg-9')
+
         if 'Рейсов не найдено' in content.text or 'Билеты не найдены' in content.text:
             return {}
+
         response = {}
         counter = 1
         routes = content.findAll('div', 'MuiGrid-root MuiGrid-container')
