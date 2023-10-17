@@ -17,11 +17,11 @@ def check_working_time(func):
         func(*args, **kwargs)
         end_time = time()
 
-        execution_time = end_time - start_time
+        execution_time = round(end_time - start_time, 2)
         if func.__name__ == 'track':
-            bot.db.system_update('reminder_track_execution_time')
+            bot.db.system_update('reminder_track_execution_time', str(execution_time))
         if execution_time > 55:
-            bot.log.warning(f'Reminder {func.__name__.title()} time limit exceeded: {round(execution_time, 1)} sec.')
+            bot.log.warning(f'Reminder {func.__name__.title()} time limit exceeded: {execution_time} sec.')
 
     return wrapper
 
