@@ -233,13 +233,13 @@ class Track(BaseAction):
 
         self.bot.delete_messages_safe(chat_id, [call.message.id])
 
-    def status(self, message: Message):
+    def test(self, message: Message):
         user_id = message.from_user.id
         chat_id = message.chat.id
+
+        msg = self.bot.send_message(chat_id, self.bot.m('loading'))
         from_ = 'Витебск'
         to_ = 'Минск'
-
-        msg = self.bot.send_message_quiet(chat_id, self.bot.m('loading'))
         track_data = self.bot.db.user_get(user_id)['track']
 
         for date_ in [date.today() + timedelta(days=i) for i in range(5)]:

@@ -71,15 +71,19 @@ def initialize(bot: MyBot):
 
     @bot.message_handler(commands=['logs'], func=generic.is_admin)
     def logs_send(message: Message):
-        generic.logs_send(message)
+        generic.logs(message)
 
-    @bot.message_handler(commands=['clear_logs'], func=generic.is_admin)
-    def logs_clear(message: Message):
-        generic.logs_clear(message)
+    @bot.message_handler(commands=['system'], func=generic.is_admin)
+    def system_status(message: Message):
+        generic.system_status(message)
 
     @bot.message_handler(commands=['exit'], func=generic.is_admin)
     def exit_bot(message: Message):
         generic.exit_bot(message)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith(generic.markups.prefix))
+    def generic_callback(call: CallbackQuery):
+        generic.callback(call)
 
     @bot.message_handler(commands=['secret'])
     def secret(message: Message):
@@ -107,9 +111,9 @@ def initialize(bot: MyBot):
     def track_callback(call: CallbackQuery):
         track.callback(call)
 
-    @bot.message_handler(commands=['status'], func=generic.is_admin)
-    def status(message: Message):
-        track.status(message)
+    @bot.message_handler(commands=['test'], func=generic.is_admin)
+    def track_test(message: Message):
+        track.test(message)
 
     # Parse
     parse = Parse(bot)

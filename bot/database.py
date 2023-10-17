@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from clients import DatabaseClient
 
@@ -6,6 +7,7 @@ from clients import DatabaseClient
 class DatabaseActions:
     def __init__(self, database_client: DatabaseClient):
         self.engine = database_client
+        self.datetime_scheme = '%Y-%m-%d %H:%M:%S'
 
     def setup(self):
         self.engine.create_conn()
@@ -14,26 +16,48 @@ class DatabaseActions:
     def shutdown(self):
         self.engine.close_conn()
 
+    def _datetime_to_str(self, datetime_: datetime = None):
+        if not datetime_:
+            datetime_ = datetime.now()
+        return datetime_.strftime(self.datetime_scheme)
+
+    def _str_to_datetime(self, string: str):
+        return datetime.strptime(string, self.datetime_scheme)
+
     def _create_tables(self):
         CREATE_USERS_TABLE = """
-                CREATE TABLE IF NOT EXISTS users (
-                    "user_id" INTEGER PRIMARY KEY NOT NULL UNIQUE,
-                    "username" TEXT,
-                    "chat_id" INTEGER NOT NULL,
-                    "is_active" BOOLEAN NOT NULL CHECK ("is_active" IN (0, 1)),
-                    "level" INT NOT NULL CHECK ("level" IN (1, 2)),
-                    "notify_data" JSON,
-                    "track_data" JSON,
-                    "parse_data" JSON
-                );
-            """
+            CREATE TABLE IF NOT EXISTS users (
+            "user_id" INTEGER PRIMARY KEY NOT NULL UNIQUE,
+            "username" TEXT,
+            "chat_id" INTEGER NOT NULL,
+            "is_active" BOOLEAN NOT NULL CHECK ("is_active" IN (0, 1)),
+            "level" INT NOT NULL CHECK ("level" IN (1, 2)),
+            "notify_data" JSON,
+            "track_data" JSON,
+            "parse_data" JSON
+            );
+        """
         CREATE_INVITE_CODES_TABLE = """
-                CREATE TABLE IF NOT EXISTS invite_codes (
-                    "code" TEXT NOT NULL
-                );
-            """
+            CREATE TABLE IF NOT EXISTS invite_codes (
+                "code" TEXT NOT NULL
+            );
+        """
+        CREATE_SYSTEM_TABLE = """
+            CREATE TABLE IF NOT EXISTS system (
+                "id" INTEGER NOT NULL UNIQUE DEFAULT 0,
+                "start_time" TEXT NOT NULL DEFAULT '%s',
+                "exception_time" TEXT NOT NULL DEFAULT '%s',
+                "reminder_track_time" TEXT NOT NULL DEFAULT '%s',
+                "reminder_track_execution_time" TEXT NOT NULL DEFAULT '0',
+                "reminder_notify_time" TEXT NOT NULL DEFAULT '%s',
+                "logs_clear_time" TEXT NOT NULL DEFAULT '%s'
+            );
+        """ % ((self._datetime_to_str(),) * 5)
+
         self.engine.execute(CREATE_USERS_TABLE, ())
         self.engine.execute(CREATE_INVITE_CODES_TABLE, ())
+        self.engine.execute(CREATE_SYSTEM_TABLE, ())
+        self.engine.execute('INSERT OR IGNORE INTO system DEFAULT VALUES;', ())
 
     @staticmethod
     def _get_json_data(raw_data) -> list:
@@ -160,3 +184,21 @@ class DatabaseActions:
             completed_data = self._json_dump(data)
             self.engine.execute('UPDATE users SET track_data = ? WHERE user_id = ?;', (completed_data, user_id))
             return True
+
+    # System
+
+    def system_get(self):
+        data_raw = self.engine.execute_select('SELECT * FROM system WHERE id = 0;')
+        return {
+            'start_time': self._str_to_datetime(data_raw[0][1]),
+            'exception_time': self._str_to_datetime(data_raw[0][2]),
+            'reminder_track_time': self._str_to_datetime(data_raw[0][3]),
+            'reminder_track_execution_time': data_raw[0][4],
+            'reminder_notify_time': self._str_to_datetime(data_raw[0][5]),
+            'logs_clear_time': self._str_to_datetime(data_raw[0][6]),
+        }
+
+    def system_update(self, name: str, value: datetime | str = None):
+        if not isinstance(value, str):
+            value = self._datetime_to_str(value)
+        self.engine.execute('UPDATE system SET %s = ? WHERE id = 0;' % name, (value,))

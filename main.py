@@ -35,7 +35,10 @@ bot = MyBot(
 )
 
 if __name__ == '__main__':
+    bot.setup()
+    bot.db.system_update('start_time')
     initialize(bot)
+
     while True:
         try:
             bot.setup()
@@ -45,6 +48,7 @@ if __name__ == '__main__':
             bot.shutdown()
             break
         except Exception as err:  # TODO: do not log requests TimedOut errors
+            bot.db.system_update('exception_time')
             exc_desc_lines = traceback.format_exception_only(type(err), err)
             exc_desc = ''.join(exc_desc_lines).rstrip()
             bot.tg.post(

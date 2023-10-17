@@ -29,8 +29,8 @@ class BaseMarkup:
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton(
             '✅ Добавить',
-            callback_data=self.sep.join([self.prefix, 'ADD', '-1', str(total_num)]))
-        )
+            callback_data=self.sep.join([self.prefix, 'ADD', '-1', str(total_num)])
+        ))
         return keyboard
 
     def delete_update(self, index: int, total_num: int, date_: str, from_: str = '',
@@ -185,18 +185,17 @@ class BaseAction:
             self.bot.answer_callback_query(call.id, self.bot.m('cancel'))
             self.bot.delete_message(chat_id, call.message.message_id)
 
-        elif action == 'ADD':
-            self._add(user_id, chat_id)
-            self._start_delete_msgs(call, callback_data)
+        if name == self.markups.prefix:
+            if action == 'ADD':
+                self._add(user_id, chat_id)
+                self._start_delete_msgs(call, callback_data)
+            elif action == 'DEL':
+                self._start_delete_msgs(call, callback_data)
+                self._delete(call, user_id, chat_id, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
+            elif action == 'UPD':
+                self._update(call, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
 
-        elif action == 'DEL':
-            self._start_delete_msgs(call, callback_data)
-            self._delete(call, user_id, chat_id, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
-
-        elif action == 'UPD':
-            self._update(call, callback_data[4], callback_data[5], callback_data[6], callback_data[7])
-
-        if name == self.markups.prefix_calendar:
+        elif name == self.markups.prefix_calendar:
             chosen_date = self.markups.calendar_handler(self.bot, call, callback_data)
             if action == 'DAY':
                 self._date_select(call, user_id, chat_id, chosen_date)

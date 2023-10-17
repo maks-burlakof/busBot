@@ -18,6 +18,8 @@ def check_working_time(func):
         end_time = time()
 
         execution_time = end_time - start_time
+        if func.__name__ == 'track':
+            bot.db.system_update('reminder_track_execution_time')
         if execution_time > 55:
             bot.log.warning(f'Reminder {func.__name__.title()} time limit exceeded: {round(execution_time, 1)} sec.')
 
@@ -47,6 +49,7 @@ class Reminder:
     @check_working_time
     def notify(self):
         self._log('Reminder.notify() is called')
+        self.bot.db.system_update('reminder_notify_time')
         for user in self.bot.db.users_get_all():
             new_data = user['notify'].copy()
             for dict_ in user['notify']:
@@ -65,6 +68,7 @@ class Reminder:
     @check_working_time
     def track(self):
         self._log('Reminder.track() is called')
+        self.bot.db.system_update('reminder_track_time')
         for user_id, chat_id, username, dict_ in self.bot.db.track_get_all_active():
             datetime_ = datetime.strptime(f"{dict_['date']} {dict_['time']}", '%Y-%m-%d %H:%M')
             if datetime_ < datetime.today():
