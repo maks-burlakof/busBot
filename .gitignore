@@ -1,0 +1,16 @@
+# IDE files
+/venv/
+.idea/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+*.pyo
+
+# trash
+*.bak
+*.log
+
+# dev files
+.env
+*.db
+*.ipynb

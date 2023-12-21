@@ -152,9 +152,10 @@ class Track(BaseAction):
             deleted_date = self._get_date_obj(data_to_remove['date'])
             self.bot.send_message_quiet(
                 user_id,
-                self.bot.m('track_delete_success') + '\n' + self.bot.m('track_template') % (
+                self.bot.m('track_delete_success') + '\n<s>' + self.bot.m('track_template') % (
                     deleted_date.strftime('%-d %B (%a)'), data_to_remove['from'],
-                    data_to_remove['to'], data_to_remove['time'])
+                    data_to_remove['to'], data_to_remove['time']) + '</s>',
+                parse_mode='HTML',
             )
         else:
             self.bot.answer_callback_query(call.id, self.bot.m('no_records'))

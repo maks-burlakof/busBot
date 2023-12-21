@@ -249,7 +249,7 @@ class Generic(BaseAction):
 
     def logs(self, message: Message):
         is_clear = '-clear' in message.text
-        with open('logs.log', 'rb') as f:
+        with open('logs/logs.log', 'rb') as f:
             try:
                 self.bot.send_document(
                     message.chat.id,
@@ -262,7 +262,7 @@ class Generic(BaseAction):
                 self.bot.send_message_quiet(message.chat.id, 'Файл логов пуст')
                 return
         if is_clear:
-            with open('logs.log', 'w') as f:
+            with open('logs/logs.log', 'w') as f:
                 f.write('')
             self.bot.db.system_update('logs_clear_time')
 
@@ -302,9 +302,13 @@ class Generic(BaseAction):
             action = callback_data[1]
             subaction = callback_data[2]
             if subaction == 'UPD':
-                self.bot.edit_message_text(system_info, request.message.chat.id, request.message.id,
-                                           parse_mode='Markdown', reply_markup=self.markups.system_info_update())
-                self.bot.answer_callback_query(request.id, self.bot.m('updated'))
+                try:
+                    self.bot.edit_message_text(system_info, request.message.chat.id, request.message.id,
+                                               parse_mode='Markdown', reply_markup=self.markups.system_info_update())
+                except ApiTelegramException as e:
+                    pass
+                finally:
+                    self.bot.answer_callback_query(request.id, self.bot.m('updated'))
 
     def exit_bot(self, message: Message):
         def exit_bot_handle_confirmation(msg: Message):
