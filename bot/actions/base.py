@@ -106,12 +106,10 @@ class BaseMarkup:
         keyboard = InlineKeyboardMarkup()
         for bus in parser_data:
             time_ = parser_data[bus]['departure_time']
-            free_seats = parser_data[bus]['free_places_info']
-            free_seats_num = '0' if free_seats == 'Нет мест' else '1'
             keyboard.add(InlineKeyboardButton(
-                f"{time_} ({free_seats})",
+                f"{time_} ({parser_data[bus]['free_seats_text']})",
                 callback_data=self._departure_time_callback_data(
-                    _date, _from, _to, time_, free_seats_num
+                    _date, _from, _to, time_, parser_data[bus]['free_seats']
                 )
             ))
         keyboard.add(InlineKeyboardButton(
@@ -120,8 +118,8 @@ class BaseMarkup:
         ))
         return keyboard
 
-    def _departure_time_callback_data(self, _date: str, _from: str, _to: str, time_: str, free_seats_num: str):
-        return self.sep.join([self.prefix_time, _date, _from, _to, time_, free_seats_num])
+    def _departure_time_callback_data(self, _date: str, _from: str, _to: str, time_: str, free_seats_num: int):
+        return self.sep.join([self.prefix_time, _date, _from, _to, time_, str(free_seats_num)])
 
     def buy_ticket(self, url: str) -> InlineKeyboardMarkup:
         keyboard = InlineKeyboardMarkup()

@@ -184,7 +184,7 @@ class Track(BaseAction):
     def _cities_select(self, call: CallbackQuery, user_id: int, chat_id: int, date_: str, from_: str, to_: str):
         msg = self.bot.send_message_quiet(chat_id, self.bot.m('loading'))
         date_ = self._get_date_obj(date_)
-        parser_data = self.bot.parser.parse(from_, to_, str(date_))
+        parser_data = self.bot.parser.api_parse(from_, to_, str(date_))
         if parser_data:
             self.bot.edit_message_text(
                 f'<b>{self.bot.m("request_time")}</b>' +
@@ -247,21 +247,22 @@ class Track(BaseAction):
             if self._find_track_in_data(track_data, str(date_), from_, to_, None, None) != None:
                 continue
             start_time = time()
-            response = self.bot.parser.parse(from_, to_, str(date_))
+            response = self.bot.parser.api_parse(from_, to_, str(date_))
             end_time = time()
             execution_time = round(end_time - start_time, 2)
             for data in response.values():
                 time_ = data['departure_time']
-                if data['free_places_info'] != 'Нет мест':
+                if data['free_seats'] != 0:
                     self._set_new_data(user_id, track_data, str(date_), from_, to_, time_)
                     self.bot.edit_message_text(
-                        f'*Статус подключения*\n✅ route.by\n🌀 Reminder Track - {execution_time} sec.\n\n'
+                        f'*Статус подключения*\n✅ {self.bot.parser.domain}\n🌀 Reminder Track - {execution_time} sec.\n\n'
                         '*Установлен тестовый рейс:*' +
                             self.bot.m('selected_date') % date_.strftime('%-d %B %Yг. (%a)') +
-                            self.bot.m('selected_cities') % (from_, to_) + f', {time_}',
+                            self.bot.m('selected_cities') % (from_, to_) + f", {time_}\n{data['free_seats_text']}",
                         chat_id,
                         msg.id,
                         parse_mode='Markdown',
+                        disable_web_page_preview=True,
                     )
                     self.start(message)
                     return

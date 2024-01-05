@@ -79,14 +79,14 @@ class Parse(BaseAction):
         msg = self.bot.send_message_quiet(chat_id, self.bot.m('loading'))
         date_ = self._get_date_obj(date_)
         parse_data = self.bot.db.user_get(user_id)['parse']
-        parser_data = self.bot.parser.parse(from_, to_, str(date_))
+        parser_data = self.bot.parser.api_parse(from_, to_, str(date_))
         if parser_data:
             stylized = ""
             for bus in parser_data:
-                free_places_info = parser_data[bus]['free_places_info']
-                stylized += f"🕓 *{parser_data[bus]['departure_time']}* - {parser_data[bus]['arrival_time']} \n" + \
-                            ("⛔️ " if 'Нет мест' in free_places_info else "✅ ") + f"{free_places_info} " + \
-                            (f"💵 {parser_data[bus]['cost']} \n\n" if 'Нет мест' not in free_places_info else '\n\n')
+                stylized += ("⛔️ " if parser_data[bus]['free_seats'] == 0 else "✅ ") + \
+                            f"*{parser_data[bus]['departure_time']}* - {parser_data[bus]['arrival_time']} \n" + \
+                            f"{parser_data[bus]['free_seats_text']} " + \
+                            (f", {parser_data[bus]['price']} р.\n\n" if parser_data[bus]['free_seats'] != 0 else '\n\n')
             self.bot.edit_message_text(
                 self.bot.m('parse_response_template') % (
                     from_, to_, date_.strftime('(%a) %-d %B %Yг.')

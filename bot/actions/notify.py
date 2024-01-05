@@ -74,7 +74,7 @@ class Notify(BaseAction):
             self.start(msg)
 
     def _update(self, call: CallbackQuery, date_: str, *args):
-        parsed_data = self.bot.parser.parse('Шумилино', 'Минск', date_)
+        parsed_data = self.bot.parser.api_parse('Шумилино', 'Минск', date_)
         if parsed_data:
             self.bot.answer_callback_query(
                 call.id,

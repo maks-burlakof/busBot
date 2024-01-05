@@ -32,9 +32,19 @@ def parser_time(n: int):
         bot.parser.parse(from_, to_, str(date_))
 
 
+@_check_working_time
+def api_parser_time(n: int):
+    from_ = 'Витебск'
+    to_ = 'Минск'
+    datetime_ = datetime.today() + timedelta(days=1)
+    date_ = date(datetime_.year, datetime_.month, datetime_.day)
+    for i in range(n):
+        bot.parser.api_parse(from_, to_, str(date_))
+
+
 if __name__ == '__main__':
     parser = ArgumentParser(description='Run the test scripts')
-    parser.add_argument('-action', '-a', required=True, type=str, choices=('db', 'parser'), help='Test to be performed')
+    parser.add_argument('-action', '-a', required=True, type=str, choices=('db', 'parser', 'api-parser'), help='Test to be performed')
     parser.add_argument('-n', required=True, type=int, help='Number of requests')
     args = parser.parse_args()
 
@@ -46,4 +56,6 @@ if __name__ == '__main__':
         db_time(requests_num)
     elif action == 'parser':
         parser_time(requests_num)
+    elif action == 'api-parser':
+        api_parser_time(requests_num)
     bot.shutdown()

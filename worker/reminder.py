@@ -78,11 +78,11 @@ class Reminder:
 
             if days_delta >= 1:  # not tomorrow
                 if days_delta == 1:  # after one day
-                    freq = 3
+                    freq = 2
                 elif days_delta <= 5:
-                    freq = 5
+                    freq = 4
                 else:
-                    freq = 10
+                    freq = 8
 
                 if dict_['passed'] < freq:
                     self.bot.db.track_update_by_data(user_id, dict_, 'passed', dict_['passed'] + 1)
