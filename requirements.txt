@@ -2,3 +2,5 @@ python-dotenv~=1.0.0
 pyTelegramBotAPI~=4.14.0
 requests~=2.31.0
 beautifulsoup4~=4.12.2
+fastapi~=0.108.0
+uvicorn~=0.25.0

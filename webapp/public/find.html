@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Найти маршрутку{% endblock %}
+{% block extrastyle %}
+	<link rel="stylesheet" href="{{ url_for('static', path='js/calendar/vanilla-calendar.min.css') }}" />
+{% endblock %}
+{% block content %}
+	<div class="scroller">
+      <div class="wrapper">
+         <div class="items items-transitioned" style="transform: translateX(0%) translateX(-8px);">
+            <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
+               <div class="slide">
+                  <div tabindex="0" class="focustrap"></div>
+                  <div class="content" style="text-align: left;">
+                     <p class="text-muted">3 / 9</p>
+                     <h2>Поиск</h2>
+                     <form>
+                        <div id="calendar"></div>
+                        <div class="control">
+                           <label for="cityFrom" class="input" data-size="m">
+                              <div class="input-wrapper">
+                                 <select id="cityFrom" class="native">
+                                    {% for city in cities %}
+                                    	<option value="{{ city }}">{{ city }}</option>
+                                    {% endfor %}
+                                 </select>
+                              </div>
+                           </label>
+                           <span>-></span>
+                           <label for="cityTo" class="input" data-size="m">
+                              <div class="input-wrapper">
+                                 <select id="cityTo" class="native">
+                                    {% for city in cities %}
+                                    	<option value="{{ city }}">{{ city }}</option>
+                                    {% endfor %}
+                                 </select>
+                              </div>
+                           </label>
+                        </div>
+                     </form>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </div>
+   </div>
+{% endblock %}
+{% block extrajs %}
+	<script src="{{ url_for('static', path='js/calendar/vanilla-calendar.min.js') }}"></script>
+	<script src="{{ url_for('static', path='js/find.js') }}?v=1.0"></script>
+{% endblock %}

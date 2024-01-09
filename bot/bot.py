@@ -126,6 +126,12 @@ def initialize(bot: MyBot):
     def parse_callback(call: CallbackQuery):
         parse.callback(call)
 
+    from webapp.webapp import token_webapp_keyboard
+
+    @bot.message_handler(commands=['web'], func=generic.is_allowed_user)
+    def webapp(message: Message):
+        bot.send_message(message.chat.id, 'Привет, я бот для проверки телеграмм webapps!)', reply_markup=token_webapp_keyboard())
+
     # Unknown command
     @bot.message_handler()
     def ordinary_text(message: Message):
