@@ -11,6 +11,7 @@
    <link rel="icon" href="static/favicon.ico">
    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v6.3.0/css/all.css">
    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=1.0">
    {% block extrastyle %}{% endblock %}
 </head>
@@ -22,12 +23,9 @@
    <div class="container">
       {% block content %}{% endblock %}
    </div>
-   <button id="mainButton">MainButton</button>
-   <button id="backButton">BackButton</button>
 
    <script src="https://telegram.org/js/telegram-web-app.js"></script>
    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-   <script src="{{ url_for('static', path='scripts.js') }}?v=1.0"></script>
    {% block extrajs %}{% endblock %}
 </body>
 </html>

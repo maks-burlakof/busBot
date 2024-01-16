@@ -341,10 +341,9 @@ a:hover {
     background: var(--tok-slide-background, var(--tok-background-color))
 }
 
-.media+.content-rounded {
+.content-rounded {
     margin-top: -2rem;
-    border-top-right-radius: 1rem;
-    border-top-left-radius: 1rem
+    border-radius: 1rem;
 }
 
 .text-muted {
@@ -446,4 +445,88 @@ a:hover {
     width:100%;
     color:var(--tok-text-color);
     border-radius:inherit
+}
+
+/* ROUTES */
+.input[data-size=xl]{
+    height:5rem;
+    min-height:5rem;
+    border-radius:1rem;
+    font:var(--tok-font-m);
+    padding-left:var(--tok-padding-l)
+}
+.bus {
+    padding: 1rem 1rem;
+    cursor: default;
+    background: var(--tok-stinger);
+    border: 2px solid transparent;
+    transition: all .2s ease-in-out;
+    transition-property: opacity, border-color;
+}
+.bus:hover {
+    border-color: var(--tok-primary);
+}
+.bus:not(:first-child){
+    margin-top:1.25rem;
+}
+.bus-col-1 {
+    flex: 1 1 auto;
+}
+.bus-col-1 h4 span,
+#busDetailsText span {
+    color: var(--tok-text-color-64);
+}
+.bus-col-1 h4 span i,
+#searchRouteText i,
+#busDetailsText i {
+    margin: 0 .3rem;
+}
+.bus-col-2 {
+    text-align: right;
+}
+
+/* CALENDAR */
+
+.my-vanilla-calendar {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    height: 44vh;
+    width: 100%;
+    flex-direction: column;
+    opacity: 1;
+    transition-property: opacity;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .15s;
+}
+[data-calendar-theme=dark] .my-vanilla-calendar-day__btn {
+    background-color: rgb(15 23 42 / var(--tw-bg-opacity));
+    color: #aeb9cc;
+}
+[data-calendar-theme=dark] .vanilla-calendar-day__btn_weekend.my-vanilla-calendar-day__btn_next,
+[data-calendar-theme=dark] .my-vanilla-calendar-day__btn_next {
+    background-color: rgb(15 23 42 / var(--tw-bg-opacity));
+    color: #475569;
+}
+.vanilla-calendar-days_selecting .my-vanilla-calendar-day__btn {
+    cursor: pointer;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: 75ms;
+}
+.my-vanilla-calendar-day__btn {
+    display: flex;
+    height: 100%;
+    min-height: 1.875rem;
+    width: 100%;
+    min-width: 1.875rem;
+    cursor: default;
+    align-items: center;
+    justify-content: center;
+    border-radius: .5rem;
+    border-width: 0px;
+    padding: 0;
+    font-size: .75rem;
+    line-height: 1rem;
+    font-weight: 400;
 }

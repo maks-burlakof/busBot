@@ -1,50 +1,60 @@
 {% extends 'base.html' %}
 {% block title %}Найти маршрутку{% endblock %}
 {% block extrastyle %}
-	<link rel="stylesheet" href="{{ url_for('static', path='js/calendar/vanilla-calendar.min.css') }}" />
+   <link rel="stylesheet" href="{{ url_for('static', path='css/vanilla-calendar.min.css') }}" />
 {% endblock %}
 {% block content %}
-	<div class="scroller">
-      <div class="wrapper">
-         <div class="items items-transitioned" style="transform: translateX(0%) translateX(-8px);">
-            <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
-               <div class="slide">
-                  <div tabindex="0" class="focustrap"></div>
-                  <div class="content" style="text-align: left;">
-                     <p class="text-muted">3 / 9</p>
-                     <h2>Поиск</h2>
-                     <form>
-                        <div id="calendar"></div>
-                        <div class="control">
-                           <label for="cityFrom" class="input" data-size="m">
-                              <div class="input-wrapper">
-                                 <select id="cityFrom" class="native">
-                                    {% for city in cities %}
-                                    	<option value="{{ city }}">{{ city }}</option>
-                                    {% endfor %}
-                                 </select>
-                              </div>
-                           </label>
-                           <span>-></span>
-                           <label for="cityTo" class="input" data-size="m">
-                              <div class="input-wrapper">
-                                 <select id="cityTo" class="native">
-                                    {% for city in cities %}
-                                    	<option value="{{ city }}">{{ city }}</option>
-                                    {% endfor %}
-                                 </select>
-                              </div>
-                           </label>
+   <div class="items items-transitioned" style="transform: translateX(0%) translateX(-8px);">
+      <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
+         <div class="slide">
+            <div class="content">
+               <h1>Поиск</h1>
+               <form>
+                  <div id="calendar"></div>
+                  <div class="control">
+                     <label for="cityFrom" class="input" data-size="m">
+                        <div class="input-wrapper">
+                           <select id="cityFrom" class="native">
+                              {% for city in cities %}
+                                 <option {% if loop.index == 1 %}selected{% endif %} value="{{ city }}">{{ city }}</option>
+                              {% endfor %}
+                           </select>
                         </div>
-                     </form>
+                     </label>
+                     <h4><i class="fa-solid fa-arrow-right"></i></h4>
+                     <label for="cityTo" class="input" data-size="m">
+                        <div class="input-wrapper">
+                           <select id="cityTo" class="native">
+                              {% for city in cities|reverse %}
+                                 <option {% if loop.index == 1 %}selected{% endif %} value="{{ city }}">{{ city }}</option>
+                              {% endfor %}
+                           </select>
+                        </div>
+                     </label>
                   </div>
-               </div>
+               </form>
+            </div>
+         </div>
+      </div>
+      <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
+         <div class="slide">
+            <div class="content">
+               <h2 id="searchRouteText"></h2>
+               <div id="searchRouteContainer"></div>
+            </div>
+         </div>
+      </div>
+      <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
+         <div class="slide">
+            <div class="content">
+               <h2 id="busDetailsText"></h2>
+               <div id="busDetailsContainer"></div>
             </div>
          </div>
       </div>
    </div>
 {% endblock %}
 {% block extrajs %}
-	<script src="{{ url_for('static', path='js/calendar/vanilla-calendar.min.js') }}"></script>
-	<script src="{{ url_for('static', path='js/find.js') }}?v=1.0"></script>
+   <script src="{{ url_for('static', path='js/vanilla-calendar.min.js') }}"></script>
+   <script src="{{ url_for('static', path='js/find.js') }}?v=1.0"></script>
 {% endblock %}

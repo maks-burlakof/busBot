@@ -4,7 +4,7 @@
    <div class="scroller">
       <div class="wrapper">
          <div class="items items-transitioned" style="transform: translateX(0%) translateX(-8px);">
-            <!-- <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
+            <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
                <div class="slide">
                   <div tabindex="0" class="focustrap"></div>
                   <div type="sticker" size="250" src="" class="container-sticker media" rotate="false" static="false" style="--sticker-h: 250px; --sticker-w: 250px;">
@@ -31,7 +31,7 @@
                      <p class="">Here you can see <b>Image</b>. But it's just the beginning...</p>
                   </div>
                </div>
-            </div> -->
+            </div>
             <div class="item" style="min-width: calc(100% + 16px); max-width: calc(100% + 16px); flex-basis: calc(100% + 16px); transform: translateX(0%);">
                <div class="slide">
                   <div tabindex="0" class="focustrap"></div>
@@ -60,4 +60,9 @@
          </div>
       </div>
    </div>
+   <button id="mainButton">MainButton</button>
+   <button id="backButton">BackButton</button>
+{% endblock %}
+{% block extrajs %}
+	<script src="{{ url_for('static', path='scripts.js') }}"></script>
 {% endblock %}
